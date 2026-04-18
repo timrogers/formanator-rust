@@ -212,7 +212,7 @@ fn handle_error_response(response: Response) -> anyhow::Error {
             .and_then(|e| e.get("message"))
             .and_then(|m| m.as_str())
     {
-        if message == "JWT token is invalid" {
+        if message.contains("JWT token is invalid") {
             return anyhow!(
                 "Your Forma access token is invalid. Please log in again with `formanator login`."
             );
