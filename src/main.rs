@@ -30,7 +30,7 @@ fn main() -> ExitCode {
     match dispatch(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("{}", e.to_string().red());
+            eprintln!("{}", format!("{e:#}").red());
             ExitCode::FAILURE
         }
     }

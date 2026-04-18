@@ -345,9 +345,11 @@ fn fetch_claims_page(access_token: &str, page: u32) -> Result<ClaimsListData> {
     if !response.status().is_success() {
         return Err(handle_error_response(response));
     }
-    let parsed: ClaimsListResponse = response
-        .json()
-        .context("Failed to parse Forma claims response")?;
+    let body = response
+        .text()
+        .context("Failed to read Forma claims response body")?;
+    let parsed: ClaimsListResponse = serde_json::from_str(&body)
+        .with_context(|| format!("Failed to parse Forma claims response:\n{body}"))?;
     Ok(parsed.data)
 }
 
