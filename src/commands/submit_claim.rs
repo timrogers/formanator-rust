@@ -21,6 +21,7 @@ pub fn run(args: SubmitClaimArgs) -> Result<()> {
         receipt_path,
         openai_api_key,
         github_token,
+        dry_run,
         ..
     } = args;
 
@@ -65,7 +66,11 @@ pub fn run(args: SubmitClaimArgs) -> Result<()> {
 
     if let Some(claim) = has_all_manual {
         let opts = claim_input_to_create_options(&claim, &access_token)?;
-        create_claim(&opts)?;
+        if dry_run {
+            println!("{}", "Dry run: skipping claim submission.".yellow());
+        } else {
+            create_claim(&opts)?;
+        }
     } else if !has_some_manual && has_llm_key {
         // Full receipt inference mode
         let benefits = get_benefits_with_categories(&access_token)?;
@@ -102,7 +107,11 @@ pub fn run(args: SubmitClaimArgs) -> Result<()> {
             receipt_path,
         };
         let opts = claim_input_to_create_options(&claim, &access_token)?;
-        create_claim(&opts)?;
+        if dry_run {
+            println!("{}", "Dry run: skipping claim submission.".yellow());
+        } else {
+            create_claim(&opts)?;
+        }
     } else if has_llm_key
         && let (Some(merchant), Some(description), Some(amount), Some(purchase_date)) = (
             merchant.clone(),
@@ -138,7 +147,11 @@ pub fn run(args: SubmitClaimArgs) -> Result<()> {
             receipt_path,
         };
         let opts = claim_input_to_create_options(&claim, &access_token)?;
-        create_claim(&opts)?;
+        if dry_run {
+            println!("{}", "Dry run: skipping claim submission.".yellow());
+        } else {
+            create_claim(&opts)?;
+        }
     } else {
         bail!(
             "You must either provide all claim details (--benefit, --category, --amount, --merchant, --purchase-date, --description), or provide an OpenAI API key or GitHub token with either: (1) just a receipt for full inference, or (2) all details except --benefit and --category to infer them."

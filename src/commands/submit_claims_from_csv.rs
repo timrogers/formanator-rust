@@ -33,7 +33,12 @@ pub fn run(args: SubmitClaimsFromCsvArgs) -> Result<()> {
         let result = (|| -> Result<()> {
             if !claim.benefit.is_empty() && !claim.category.is_empty() {
                 let opts = claim_input_to_create_options(&claim, &access_token)?;
-                create_claim(&opts)
+                if args.dry_run {
+                    println!("{}", "Dry run: skipping claim submission.".yellow());
+                    Ok(())
+                } else {
+                    create_claim(&opts)
+                }
             } else if args.openai_api_key.is_some() || args.github_token.is_some() {
                 let inferred = infer_category_and_benefit(
                     &claim.merchant,
@@ -45,7 +50,12 @@ pub fn run(args: SubmitClaimsFromCsvArgs) -> Result<()> {
                 claim.benefit = inferred.benefit;
                 claim.category = inferred.category;
                 let opts = claim_input_to_create_options(&claim, &access_token)?;
-                create_claim(&opts)
+                if args.dry_run {
+                    println!("{}", "Dry run: skipping claim submission.".yellow());
+                    Ok(())
+                } else {
+                    create_claim(&opts)
+                }
             } else {
                 anyhow::bail!(
                     "You must either fill out the `benefit` and `category` columns, or specify an OpenAI API key or GitHub token."

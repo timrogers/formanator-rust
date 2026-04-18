@@ -175,7 +175,11 @@ pub fn run(args: SubmitClaimsFromDirectoryArgs) -> Result<()> {
                     receipt_path: vec![receipt_file.clone()],
                 };
                 let opts = claim_input_to_create_options(&claim, &access_token)?;
-                create_claim(&opts)?;
+                if args.dry_run {
+                    println!("{}", "Dry run: skipping claim submission.".yellow());
+                } else {
+                    create_claim(&opts)?;
+                }
                 println!(
                     "{}",
                     format!("✅ Claim submitted successfully for {filename}").green()

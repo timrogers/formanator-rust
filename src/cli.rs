@@ -108,6 +108,9 @@ pub struct SubmitClaimArgs {
     /// GitHub token used to infer claim details via GitHub Models. Defaults to the `GITHUB_TOKEN` environment variable.
     #[arg(long, env = "GITHUB_TOKEN")]
     pub github_token: Option<String>,
+    /// Run through the entire flow without actually submitting the claim.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -131,6 +134,9 @@ pub struct SubmitClaimsFromCsvArgs {
     /// GitHub token used to infer benefit/category via GitHub Models.
     #[arg(long, env = "GITHUB_TOKEN")]
     pub github_token: Option<String>,
+    /// Run through the entire flow without actually submitting the claims.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -150,6 +156,9 @@ pub struct SubmitClaimsFromDirectoryArgs {
     /// GitHub token used to infer claim details via GitHub Models.
     #[arg(long, env = "GITHUB_TOKEN")]
     pub github_token: Option<String>,
+    /// Run through the entire flow without actually submitting the claims.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Debug, clap::Args)]
