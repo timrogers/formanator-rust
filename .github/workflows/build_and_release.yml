@@ -52,7 +52,9 @@ jobs:
       - name: Sanitise Git ref for use in filenames
         id: sanitise_ref
         shell: bash
-        run: echo "value=$(echo \"${{ github.ref_name }}\" | tr '/' '_')" >> "$GITHUB_OUTPUT"
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: echo "value=${REF_NAME//\//_}" >> "$GITHUB_OUTPUT"
       - name: Rename Windows binary to use structured filename
         if: runner.os == 'Windows'
         shell: bash
@@ -77,7 +79,9 @@ jobs:
       - name: Sanitise Git ref for use in filenames
         id: sanitise_ref
         shell: bash
-        run: echo "value=$(echo \"${{ github.ref_name }}\" | tr '/' '_')" >> "$GITHUB_OUTPUT"
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: echo "value=${REF_NAME//\//_}" >> "$GITHUB_OUTPUT"
       - name: Download macOS amd64 binary
         uses: actions/download-artifact@v4
         with:
@@ -124,7 +128,9 @@ jobs:
       - name: Sanitise Git ref for use in filenames
         id: sanitise_ref
         shell: bash
-        run: echo "value=$(echo \"${{ github.ref_name }}\" | tr '/' '_')" >> "$GITHUB_OUTPUT"
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: echo "value=${REF_NAME//\//_}" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_linux-amd64
