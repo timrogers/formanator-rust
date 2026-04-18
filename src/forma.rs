@@ -153,7 +153,7 @@ struct ClaimsListResponse {
 struct ClaimsListData {
     claims: Vec<RawClaim>,
     #[allow(dead_code)]
-    page: Option<u32>,
+    page: Value,
     limit: serde_json::Value,
     count: u64,
 }
