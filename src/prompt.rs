@@ -4,7 +4,7 @@ use std::io::{self, BufRead, Write};
 
 use anyhow::Result;
 
-/// Prompt for input on stderr, then read a line from stdin.
+/// Prompt for input on stdout, then read a line from stdin.
 pub fn prompt(message: &str) -> Result<String> {
     let stdout = io::stdout();
     let mut handle = stdout.lock();

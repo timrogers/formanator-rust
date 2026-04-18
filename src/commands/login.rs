@@ -109,8 +109,7 @@ mod tests {
         // The Forma magic-link email points at a `joinforma.page.link` URL
         // whose `link` query parameter contains the real magic link.
         let inner = "https://api.joinforma.com/client/auth/v2/login/magic?id=abc123&tk=xyz789";
-        let encoded = url::form_urlencoded::byte_serialize(inner.as_bytes())
-            .collect::<String>();
+        let encoded = url::form_urlencoded::byte_serialize(inner.as_bytes()).collect::<String>();
         let outer = format!("https://joinforma.page.link/?link={encoded}");
 
         let (id, tk) = parse_emailed_forma_magic_link(&outer).expect("should parse");

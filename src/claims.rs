@@ -93,7 +93,9 @@ pub fn claim_input_to_create_options(
         bail!("Purchase date must be in YYYY-MM-DD format.");
     }
     if !is_valid_amount(&claim.amount) {
-        bail!("Amount must be in the format 0.00.");
+        bail!(
+            "Amount must be a whole number or a number with exactly two decimal places (e.g. `10` or `10.99`)."
+        );
     }
     for path in &claim.receipt_path {
         if !path.exists() {
