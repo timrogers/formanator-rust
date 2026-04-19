@@ -1,16 +1,24 @@
 //! LLM-powered inference for claim metadata. Supports both the OpenAI API and
-//! the GitHub Models inference endpoint. Both speak the OpenAI chat-completions
-//! protocol so they can share the same code path.
+//! the GitHub Models inference endpoint via the `async-openai` crate, which
+//! speaks the OpenAI chat-completions protocol.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail};
+use async_openai::Client;
+use async_openai::config::OpenAIConfig;
+use async_openai::types::{
+    ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImageArgs,
+    ChatCompletionRequestMessageContentPartTextArgs, ChatCompletionRequestUserMessageArgs,
+    ChatCompletionRequestUserMessageContent, ChatCompletionRequestUserMessageContentPart,
+    CreateChatCompletionRequestArgs, ImageDetail, ImageUrlArgs,
+};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
+use image::ImageFormat;
+use pdfium_render::prelude::{PdfRenderConfig, Pdfium};
 use regex::Regex;
 use serde::Deserialize;
-use serde_json::{Value, json};
 
 use crate::forma::BenefitWithCategories;
 
@@ -21,8 +29,7 @@ const GITHUB_MODELS_MODEL: &str = "openai/gpt-4.1";
 
 /// Resolved configuration for an OpenAI-compatible API call.
 struct ApiConfig {
-    base: String,
-    api_key: String,
+    client: Client<OpenAIConfig>,
     model: String,
 }
 
@@ -39,74 +46,90 @@ fn resolve_api_config(
         );
     }
 
-    if let Some(key) = openai {
-        Ok(ApiConfig {
-            base: OPENAI_BASE.to_string(),
-            api_key: key.to_string(),
-            model: OPENAI_MODEL.to_string(),
-        })
+    let (base, key, model) = if let Some(key) = openai {
+        (OPENAI_BASE, key, OPENAI_MODEL)
     } else if let Some(key) = github {
-        Ok(ApiConfig {
-            base: GITHUB_MODELS_BASE.to_string(),
-            api_key: key.to_string(),
-            model: GITHUB_MODELS_MODEL.to_string(),
-        })
+        (GITHUB_MODELS_BASE, key, GITHUB_MODELS_MODEL)
     } else {
         bail!("You must either specify a GitHub token or an OpenAI API key.")
-    }
+    };
+
+    let config = OpenAIConfig::new().with_api_base(base).with_api_key(key);
+    Ok(ApiConfig {
+        client: Client::with_config(config),
+        model: model.to_string(),
+    })
 }
 
-#[derive(Debug, Deserialize)]
-struct ChatCompletionResponse {
-    choices: Vec<ChatChoice>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ChatChoice {
-    message: ChatMessage,
-}
-
-#[derive(Debug, Deserialize)]
-struct ChatMessage {
-    content: Option<String>,
-}
-
-fn http_client() -> Result<reqwest::blocking::Client> {
-    reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
+fn run_blocking<F: std::future::Future<Output = Result<String>>>(future: F) -> Result<String> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
         .build()
-        .context("Failed to build HTTP client for LLM calls")
+        .context("Failed to build Tokio runtime for LLM call")?;
+    runtime.block_on(future)
 }
 
-fn call_chat_completion(config: &ApiConfig, messages: Value) -> Result<String> {
-    let body = json!({
-        "model": config.model,
-        "messages": messages,
-    });
-    let response = http_client()?
-        .post(format!("{}/chat/completions", config.base))
-        .bearer_auth(&config.api_key)
-        .json(&body)
-        .send()
+async fn call_chat_completion(
+    config: &ApiConfig,
+    messages: Vec<ChatCompletionRequestMessage>,
+) -> Result<String> {
+    let request = CreateChatCompletionRequestArgs::default()
+        .model(&config.model)
+        .messages(messages)
+        .build()
+        .context("Failed to build chat completions request")?;
+
+    let response = config
+        .client
+        .chat()
+        .create(request)
+        .await
         .context("Failed to call chat completions endpoint")?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().unwrap_or_default();
-        bail!("Chat completions request failed with status {status}: {body}");
-    }
-
-    let parsed: ChatCompletionResponse = response
-        .json()
-        .context("Failed to parse chat completions response")?;
-
-    parsed
+    response
         .choices
         .into_iter()
         .next()
         .and_then(|c| c.message.content)
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| anyhow!("LLM returned an empty response."))
+}
+
+fn user_text_message(text: String) -> Result<ChatCompletionRequestMessage> {
+    let message = ChatCompletionRequestUserMessageArgs::default()
+        .content(ChatCompletionRequestUserMessageContent::Text(text))
+        .build()
+        .context("Failed to build user message")?;
+    Ok(ChatCompletionRequestMessage::User(message))
+}
+
+fn user_text_and_image_message(
+    text: String,
+    image_data_url: String,
+) -> Result<ChatCompletionRequestMessage> {
+    let text_part = ChatCompletionRequestMessageContentPartTextArgs::default()
+        .text(text)
+        .build()
+        .context("Failed to build text content part")?;
+    let image_part = ChatCompletionRequestMessageContentPartImageArgs::default()
+        .image_url(
+            ImageUrlArgs::default()
+                .url(image_data_url)
+                .detail(ImageDetail::High)
+                .build()
+                .context("Failed to build image URL")?,
+        )
+        .build()
+        .context("Failed to build image content part")?;
+
+    let message = ChatCompletionRequestUserMessageArgs::default()
+        .content(ChatCompletionRequestUserMessageContent::Array(vec![
+            ChatCompletionRequestUserMessageContentPart::Text(text_part),
+            ChatCompletionRequestUserMessageContentPart::ImageUrl(image_part),
+        ]))
+        .build()
+        .context("Failed to build user message")?;
+    Ok(ChatCompletionRequestMessage::User(message))
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +168,8 @@ pub fn infer_category_and_benefit(
         description,
     );
 
-    let response = call_chat_completion(&config, json!([{ "role": "user", "content": prompt }]))?;
+    let messages = vec![user_text_message(prompt)?];
+    let response = run_blocking(call_chat_completion(&config, messages))?;
     let trimmed = response.trim().to_string();
 
     // Find the matching category to derive the benefit name.
@@ -202,6 +226,7 @@ pub fn infer_all_from_receipt(
 
     let image_path = convert_to_image_if_needed(receipt_path)?;
     let image_b64 = encode_image_to_base64(&image_path)?;
+    let data_url = format!("data:image/jpeg;base64,{image_b64}");
 
     let valid_categories: Vec<String> = benefits_with_categories
         .iter()
@@ -233,20 +258,8 @@ pub fn infer_all_from_receipt(
         "Your job is to analyze a receipt image and extract ALL required information for an expense claim. You must return a JSON object with the following fields:\n\n- amount: The total amount (e.g., \"25.99\")\n- merchant: The name of the merchant/store\n- purchaseDate: The date in YYYY-MM-DD format\n- description: A brief description of what was purchased\n- benefit: The most appropriate benefit category from the valid benefits list. Only benefits from the provided list are valid.\n- category: The most appropriate category from the valid categories list. Only categories from the provided list are valid.\n\nValid benefits:\n{valid_benefits_list}\n\nValid categories:\n{valid_categories_list}\n\nReturn ONLY a valid JSON object with these exact field names. Do not include any other text or formatting. Do not wrap the JSON object in a markdown code block syntax.",
     );
 
-    let messages = json!([
-        {
-            "role": "user",
-            "content": [
-                { "type": "text", "text": prompt },
-                {
-                    "type": "image_url",
-                    "image_url": { "url": format!("data:image/jpeg;base64,{image_b64}") }
-                }
-            ]
-        }
-    ]);
-
-    let raw = call_chat_completion(&config, messages)?;
+    let messages = vec![user_text_and_image_message(prompt, data_url)?];
+    let raw = run_blocking(call_chat_completion(&config, messages))?;
 
     // Strip markdown code fences if the model added them despite the prompt.
     let cleaned = raw
@@ -321,8 +334,9 @@ fn convert_to_image_if_needed(receipt_path: &Path) -> Result<PathBuf> {
         return Ok(receipt_path.to_path_buf());
     }
 
-    // Convert the first page of the PDF to a JPEG using GraphicsMagick (which
-    // delegates to Ghostscript). This mirrors the upstream `pdf2pic` setup.
+    // Render the first page of the PDF to a JPEG using the `pdfium-render`
+    // crate (which uses Google's Pdfium library under the hood). Pdfium must
+    // be installed and discoverable at runtime — see the README for details.
     let tmp_dir = std::env::temp_dir();
     let stem = receipt_path
         .file_stem()
@@ -330,18 +344,33 @@ fn convert_to_image_if_needed(receipt_path: &Path) -> Result<PathBuf> {
         .unwrap_or("receipt");
     let output = tmp_dir.join(format!("formanator-{stem}-{}.jpg", std::process::id()));
 
-    let status = Command::new("gm")
-        .args(["convert", "-density", "100", "-resize", "2000x2000"])
-        .arg(format!("{}[0]", receipt_path.display()))
-        .arg(&output)
-        .status();
+    let bindings = Pdfium::bind_to_system_library().map_err(|e| {
+        anyhow!(
+            "Failed to load the Pdfium library required for PDF receipts: {e}. Please install Pdfium (https://github.com/bblanchon/pdfium-binaries) and ensure it is on your library search path, or use JPEG/PNG receipts instead."
+        )
+    })?;
+    let pdfium = Pdfium::new(bindings);
+    let document = pdfium
+        .load_pdf_from_file(receipt_path, None)
+        .with_context(|| format!("Failed to open PDF receipt at {}", receipt_path.display()))?;
 
-    match status {
-        Ok(s) if s.success() && output.exists() => Ok(output),
-        _ => Err(anyhow!(
-            "Failed to convert PDF to image. Please ensure GraphicsMagick (`gm`) and Ghostscript are installed, or use JPEG/PNG receipts instead."
-        )),
-    }
+    let page = document
+        .pages()
+        .first()
+        .context("PDF receipt does not contain any pages")?;
+
+    let render_config = PdfRenderConfig::new()
+        .set_target_width(2000)
+        .set_maximum_height(2000);
+
+    page.render_with_config(&render_config)
+        .context("Failed to render PDF page to bitmap")?
+        .as_image()
+        .into_rgb8()
+        .save_with_format(&output, ImageFormat::Jpeg)
+        .with_context(|| format!("Failed to write rendered JPEG to {}", output.display()))?;
+
+    Ok(output)
 }
 
 fn encode_image_to_base64(path: &Path) -> Result<String> {
