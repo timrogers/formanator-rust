@@ -3,6 +3,7 @@
 //! speaks the OpenAI chat-completions protocol.
 
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail};
 use async_openai::Client;
@@ -15,8 +16,6 @@ use async_openai::types::{
 };
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use image::ImageFormat;
-use pdfium_render::prelude::{PdfRenderConfig, Pdfium};
 use regex::Regex;
 use serde::Deserialize;
 
@@ -334,9 +333,8 @@ fn convert_to_image_if_needed(receipt_path: &Path) -> Result<PathBuf> {
         return Ok(receipt_path.to_path_buf());
     }
 
-    // Render the first page of the PDF to a JPEG using the `pdfium-render`
-    // crate (which uses Google's Pdfium library under the hood). Pdfium must
-    // be installed and discoverable at runtime — see the README for details.
+    // Convert the first page of the PDF to a JPEG using GraphicsMagick (which
+    // delegates to Ghostscript). This mirrors the upstream `pdf2pic` setup.
     let tmp_dir = std::env::temp_dir();
     let stem = receipt_path
         .file_stem()
@@ -344,33 +342,18 @@ fn convert_to_image_if_needed(receipt_path: &Path) -> Result<PathBuf> {
         .unwrap_or("receipt");
     let output = tmp_dir.join(format!("formanator-{stem}-{}.jpg", std::process::id()));
 
-    let bindings = Pdfium::bind_to_system_library().map_err(|e| {
-        anyhow!(
-            "Failed to load the Pdfium library required for PDF receipts: {e}. Please install Pdfium (https://github.com/bblanchon/pdfium-binaries) and ensure it is on your library search path, or use JPEG/PNG receipts instead."
-        )
-    })?;
-    let pdfium = Pdfium::new(bindings);
-    let document = pdfium
-        .load_pdf_from_file(receipt_path, None)
-        .with_context(|| format!("Failed to open PDF receipt at {}", receipt_path.display()))?;
+    let status = Command::new("gm")
+        .args(["convert", "-density", "100", "-resize", "2000x2000"])
+        .arg(format!("{}[0]", receipt_path.display()))
+        .arg(&output)
+        .status();
 
-    let page = document
-        .pages()
-        .first()
-        .context("PDF receipt does not contain any pages")?;
-
-    let render_config = PdfRenderConfig::new()
-        .set_target_width(2000)
-        .set_maximum_height(2000);
-
-    page.render_with_config(&render_config)
-        .context("Failed to render PDF page to bitmap")?
-        .as_image()
-        .into_rgb8()
-        .save_with_format(&output, ImageFormat::Jpeg)
-        .with_context(|| format!("Failed to write rendered JPEG to {}", output.display()))?;
-
-    Ok(output)
+    match status {
+        Ok(s) if s.success() && output.exists() => Ok(output),
+        _ => Err(anyhow!(
+            "Failed to convert PDF to image. Please ensure GraphicsMagick (`gm`) and Ghostscript are installed, or use JPEG/PNG receipts instead."
+        )),
+    }
 }
 
 fn encode_image_to_base64(path: &Path) -> Result<String> {

@@ -31,13 +31,11 @@ cargo install --path .
 
 ### Optional: PDF receipt support
 
-To analyse PDF receipts with the LLM-powered commands, install [Pdfium](https://pdfium.googlesource.com/pdfium/) (Google's PDF rendering library, used here via the [`pdfium-render`](https://crates.io/crates/pdfium-render) crate). Prebuilt Pdfium binaries are available from [`bblanchon/pdfium-binaries`](https://github.com/bblanchon/pdfium-binaries). On macOS:
+To analyse PDF receipts with the LLM-powered commands, install [GraphicsMagick](http://www.graphicsmagick.org/) and [Ghostscript](https://www.ghostscript.com/), e.g. on macOS:
 
 ```bash
-brew install pdfium
+brew install graphicsmagick ghostscript
 ```
-
-On Linux, download the appropriate archive from `bblanchon/pdfium-binaries` and place `libpdfium.so` somewhere on your library search path (e.g. `/usr/local/lib`).
 
 JPEG, PNG and HEIC receipts work out of the box without any extra dependencies.
 
