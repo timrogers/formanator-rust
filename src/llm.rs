@@ -350,8 +350,18 @@ fn convert_to_image_if_needed(receipt_path: &Path) -> Result<PathBuf> {
 
     match status {
         Ok(s) if s.success() && output.exists() => Ok(output),
-        _ => Err(anyhow!(
-            "Failed to convert PDF to image. Please ensure GraphicsMagick (`gm`) and Ghostscript are installed, or use JPEG/PNG receipts instead."
+        Ok(s) => Err(anyhow!(
+            "Failed to convert PDF receipt at {} to a JPEG: `gm convert` exited with {}. Please ensure GraphicsMagick and Ghostscript are installed (e.g. `brew install graphicsmagick ghostscript` on macOS, or `apt install graphicsmagick ghostscript` on Debian/Ubuntu), or use a JPEG/PNG receipt instead.",
+            receipt_path.display(),
+            s
+        )),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(anyhow!(
+            "Failed to convert PDF receipt at {}: the GraphicsMagick `gm` command was not found on your PATH. Please install GraphicsMagick and Ghostscript (e.g. `brew install graphicsmagick ghostscript` on macOS, or `apt install graphicsmagick ghostscript` on Debian/Ubuntu), or use a JPEG/PNG receipt instead.",
+            receipt_path.display()
+        )),
+        Err(e) => Err(anyhow!(
+            "Failed to invoke `gm convert` to convert PDF receipt at {}: {e}. Please ensure GraphicsMagick and Ghostscript are installed, or use a JPEG/PNG receipt instead.",
+            receipt_path.display()
         )),
     }
 }
