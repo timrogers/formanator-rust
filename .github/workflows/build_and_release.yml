@@ -65,14 +65,44 @@ jobs:
         run: |
           rm -f target/${{ matrix.job.target }}/release/formanator.d
           cp target/${{ matrix.job.target }}/release/formanator formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+      - name: Write Apple signing key to a file (macOS only)
+        if: runner.os == 'macOS'
+        env:
+          APPLE_SIGNING_KEY_P12: ${{ secrets.APPLE_SIGNING_KEY_P12 }}
+        run: echo "$APPLE_SIGNING_KEY_P12" | base64 -d -o key.p12
+      - name: Write App Store Connect API key to a file (macOS only)
+        if: runner.os == 'macOS'
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: echo "$APP_STORE_CONNECT_API_KEY" > app_store_connect_api_key.json
+      - name: Sign macOS binary (macOS only)
+        if: runner.os == 'macOS'
+        uses: indygreg/apple-code-sign-action@v1
+        with:
+          input_path: formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+          p12_file: key.p12
+          p12_password: ${{ secrets.APPLE_SIGNING_KEY_PASSWORD }}
+          sign: true
+          sign_args: "--code-signature-flags=runtime"
       - name: Upload binary as artifact
         uses: actions/upload-artifact@v4
         with:
           path: formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+      - name: Archive macOS binary for notarisation (macOS only)
+        if: runner.os == 'macOS'
+        run: zip formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}.zip formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
+      - name: Notarise signed macOS binary (macOS only)
+        if: runner.os == 'macOS'
+        uses: indygreg/apple-code-sign-action@v1
+        with:
+          input_path: formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}.zip
+          sign: false
+          notarize: true
+          app_store_connect_api_key_json_file: app_store_connect_api_key.json
 
-  create_macos_universal_binary:
-    name: Create macOS universal binary
+  create_and_sign_macos_universal_binary:
+    name: Create and sign macOS universal binary (macOS only)
     runs-on: macos-latest
     needs: build
     steps:
@@ -95,11 +125,36 @@ jobs:
           lipo -create -output formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal \
             formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-amd64 \
             formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-aarch64
+      - name: Write Apple signing key to a file (macOS only)
+        env:
+          APPLE_SIGNING_KEY_P12: ${{ secrets.APPLE_SIGNING_KEY_P12 }}
+        run: echo "$APPLE_SIGNING_KEY_P12" | base64 -d -o key.p12
+      - name: Write App Store Connect API key to a file (macOS only)
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: echo "$APP_STORE_CONNECT_API_KEY" > app_store_connect_api_key.json
+      - name: Sign macOS binary (macOS only)
+        uses: indygreg/apple-code-sign-action@v1
+        with:
+          input_path: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
+          p12_file: key.p12
+          p12_password: ${{ secrets.APPLE_SIGNING_KEY_PASSWORD }}
+          sign: true
+          sign_args: "--code-signature-flags=runtime"
       - name: Upload universal binary as artifact
         uses: actions/upload-artifact@v4
         with:
           path: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
+      - name: Archive macOS binary for notarisation (macOS only)
+        run: zip formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal.zip formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
+      - name: Notarise signed macOS binary (macOS only)
+        uses: indygreg/apple-code-sign-action@v1
+        with:
+          input_path: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal.zip
+          sign: false
+          notarize: true
+          app_store_connect_api_key_json_file: app_store_connect_api_key.json
 
   cargo_publish_dry_run:
     name: Publish with Cargo in dry-run mode
@@ -122,7 +177,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
-      - create_macos_universal_binary
+      - create_and_sign_macos_universal_binary
     if: startsWith(github.event.ref, 'refs/tags/v')
     steps:
       - name: Sanitise Git ref for use in filenames
