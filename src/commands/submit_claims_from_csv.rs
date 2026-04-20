@@ -50,6 +50,8 @@ pub fn run(args: SubmitClaimsFromCsvArgs) -> Result<()> {
                 )?;
                 claim.benefit = inferred.benefit;
                 claim.category = inferred.category;
+                println!("Inferred benefit: {}", claim.benefit);
+                println!("Inferred category: {}", claim.category);
                 let opts = claim_input_to_create_options(&claim, &access_token)?;
                 if args.dry_run {
                     println!("{}", "Dry run: skipping claim submission.".yellow());
