@@ -50,7 +50,9 @@ fn send_request(
         }
     }
 
-    let response = client.execute(request).with_context(|| context.to_string())?;
+    let response = client
+        .execute(request)
+        .with_context(|| context.to_string())?;
     let status = response.status();
     let body = response.text().unwrap_or_default();
 
