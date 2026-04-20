@@ -447,6 +447,29 @@ pub fn get_claims_list(access_token: &str, filter: Option<ClaimsFilter>) -> Resu
 }
 
 pub fn create_claim(opts: &CreateClaimOptions) -> Result<()> {
+    let subcategory_alias = opts.subcategory_alias.clone().unwrap_or_default();
+
+    if is_verbose() {
+        eprintln!("[verbose] Multipart form fields for POST /client/api/v2/claims:");
+        eprintln!("[verbose]   type = \"transaction\"");
+        eprintln!("[verbose]   is_recurring = \"false\"");
+        eprintln!("[verbose]   amount = {:?}", opts.amount);
+        eprintln!("[verbose]   transaction_date = {:?}", opts.purchase_date);
+        eprintln!(
+            "[verbose]   default_employee_wallet_id = {:?}",
+            opts.benefit_id
+        );
+        eprintln!("[verbose]   note = {:?}", opts.description);
+        eprintln!("[verbose]   category = {:?}", opts.category_id);
+        eprintln!("[verbose]   category_alias = \"\"");
+        eprintln!("[verbose]   subcategory = {:?}", opts.subcategory_value);
+        eprintln!("[verbose]   subcategory_alias = {:?}", subcategory_alias);
+        eprintln!("[verbose]   reimbursement_vendor = {:?}", opts.merchant);
+        for path in &opts.receipt_path {
+            eprintln!("[verbose]   file[] = {:?}", path.display());
+        }
+    }
+
     let mut form = multipart::Form::new()
         .text("type", "transaction".to_string())
         .text("is_recurring", "false".to_string())
@@ -457,10 +480,7 @@ pub fn create_claim(opts: &CreateClaimOptions) -> Result<()> {
         .text("category", opts.category_id.clone())
         .text("category_alias", String::new())
         .text("subcategory", opts.subcategory_value.clone())
-        .text(
-            "subcategory_alias",
-            opts.subcategory_alias.clone().unwrap_or_default(),
-        )
+        .text("subcategory_alias", subcategory_alias)
         .text("reimbursement_vendor", opts.merchant.clone());
 
     for path in &opts.receipt_path {
