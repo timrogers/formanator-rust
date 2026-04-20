@@ -486,7 +486,7 @@ pub fn create_claim(opts: &CreateClaimOptions) -> Result<()> {
     for path in &opts.receipt_path {
         let abs: &Path = path.as_ref();
         form = form
-            .file("file", abs)
+            .file("file[]", abs)
             .with_context(|| format!("Failed to attach receipt at {}", abs.display()))?;
     }
 
