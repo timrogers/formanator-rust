@@ -8,7 +8,7 @@ use colored::Colorize;
 use crate::claims::{ClaimInput, claim_input_to_create_options};
 use crate::cli::SubmitClaimsFromDirectoryArgs;
 use crate::config::resolve_access_token;
-use crate::forma::{create_claim, get_benefits_with_categories};
+use crate::forma::{create_claim, get_benefits_with_categories, set_verbose};
 use crate::llm::infer_all_from_receipt;
 use crate::prompt::prompt;
 
@@ -69,6 +69,7 @@ fn move_to_processed(source: &Path, processed_dir: &Path) -> Result<()> {
 }
 
 pub fn run(args: SubmitClaimsFromDirectoryArgs) -> Result<()> {
+    set_verbose(args.verbose);
     let access_token = resolve_access_token(args.access_token.as_deref())?;
 
     if args.openai_api_key.is_none() && args.github_token.is_none() {

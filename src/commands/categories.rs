@@ -3,7 +3,7 @@ use tabled::{Table, Tabled, settings::Style};
 
 use crate::cli::CategoriesArgs;
 use crate::config::resolve_access_token;
-use crate::forma::get_categories_for_benefit_name;
+use crate::forma::{get_categories_for_benefit_name, set_verbose};
 
 #[derive(Tabled)]
 struct Row {
@@ -14,6 +14,7 @@ struct Row {
 }
 
 pub fn run(args: CategoriesArgs) -> Result<()> {
+    set_verbose(args.verbose);
     let access_token = resolve_access_token(args.access_token.as_deref())?;
     let categories = get_categories_for_benefit_name(&access_token, &args.benefit)?;
 

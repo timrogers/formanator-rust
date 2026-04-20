@@ -1,15 +1,70 @@
 //! HTTP client for the Forma API (`https://api.joinforma.com`).
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
-use reqwest::blocking::{Client, Response, multipart};
+use reqwest::blocking::{Client, multipart};
 use serde::Deserialize;
 use serde_json::Value;
 
 const API_BASE: &str = "https://api.joinforma.com";
 const AUTH_HEADER: &str = "x-auth-token";
+
+// ---------------------------------------------------------------------------
+// Verbose logging
+// ---------------------------------------------------------------------------
+
+static VERBOSE: AtomicBool = AtomicBool::new(false);
+
+/// Enable or disable verbose HTTP request/response logging to stderr.
+pub fn set_verbose(enabled: bool) {
+    VERBOSE.store(enabled, Ordering::Relaxed);
+}
+
+fn is_verbose() -> bool {
+    VERBOSE.load(Ordering::Relaxed)
+}
+
+struct RawResponse {
+    status: reqwest::StatusCode,
+    body: String,
+}
+
+/// Build, optionally log, send, read the body, and optionally log the response.
+fn send_request(
+    client: &Client,
+    builder: reqwest::blocking::RequestBuilder,
+    context: &str,
+) -> Result<RawResponse> {
+    let request = builder.build().with_context(|| context.to_string())?;
+
+    if is_verbose() {
+        eprintln!("[verbose] > {} {}", request.method(), request.url());
+        if let Some(body) = request.body()
+            && let Some(bytes) = body.as_bytes()
+            && let Ok(text) = std::str::from_utf8(bytes)
+        {
+            eprintln!("[verbose] > Body: {text}");
+        }
+    }
+
+    let response = client.execute(request).with_context(|| context.to_string())?;
+    let status = response.status();
+    let body = response.text().unwrap_or_default();
+
+    if is_verbose() {
+        eprintln!(
+            "[verbose] < {} {}",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("")
+        );
+        eprintln!("[verbose] < Body: {body}");
+    }
+
+    Ok(RawResponse { status, body })
+}
 
 fn client() -> Result<Client> {
     Client::builder()
@@ -198,15 +253,13 @@ struct MagicLinkExchangeData {
 // Error handling
 // ---------------------------------------------------------------------------
 
-fn handle_error_response(response: Response) -> anyhow::Error {
-    let status = response.status();
+fn handle_error_response(status: reqwest::StatusCode, body: &str) -> anyhow::Error {
     let status_text = status
         .canonical_reason()
         .unwrap_or("unknown status")
         .to_string();
-    let body = response.text().unwrap_or_default();
 
-    if let Ok(parsed) = serde_json::from_str::<Value>(&body)
+    if let Ok(parsed) = serde_json::from_str::<Value>(body)
         && let Some(message) = parsed
             .get("errors")
             .and_then(|e| e.get("message"))
@@ -233,17 +286,17 @@ fn handle_error_response(response: Response) -> anyhow::Error {
 // ---------------------------------------------------------------------------
 
 fn get_profile(access_token: &str) -> Result<ProfileResponse> {
-    let response = client()?
-        .get(format!("{API_BASE}/client/api/v3/settings/profile"))
-        .header(AUTH_HEADER, access_token)
-        .send()
-        .context("Failed to call Forma profile endpoint")?;
-    if !response.status().is_success() {
-        return Err(handle_error_response(response));
+    let c = client()?;
+    let resp = send_request(
+        &c,
+        c.get(format!("{API_BASE}/client/api/v3/settings/profile"))
+            .header(AUTH_HEADER, access_token),
+        "Failed to call Forma profile endpoint",
+    )?;
+    if !resp.status.is_success() {
+        return Err(handle_error_response(resp.status, &resp.body));
     }
-    response
-        .json::<ProfileResponse>()
-        .context("Failed to parse Forma profile response")
+    serde_json::from_str(&resp.body).context("Failed to parse Forma profile response")
 }
 
 pub fn get_benefits(access_token: &str) -> Result<Vec<Benefit>> {
@@ -337,19 +390,17 @@ pub enum ClaimsFilter {
 
 fn fetch_claims_page(access_token: &str, page: u32) -> Result<ClaimsListData> {
     let url = format!("{API_BASE}/client/api/v2/claims?page={page}");
-    let response = client()?
-        .get(url)
-        .header(AUTH_HEADER, access_token)
-        .send()
-        .context("Failed to call Forma claims endpoint")?;
-    if !response.status().is_success() {
-        return Err(handle_error_response(response));
+    let c = client()?;
+    let resp = send_request(
+        &c,
+        c.get(url).header(AUTH_HEADER, access_token),
+        "Failed to call Forma claims endpoint",
+    )?;
+    if !resp.status.is_success() {
+        return Err(handle_error_response(resp.status, &resp.body));
     }
-    let body = response
-        .text()
-        .context("Failed to read Forma claims response body")?;
-    let parsed: ClaimsListResponse = serde_json::from_str(&body)
-        .with_context(|| format!("Failed to parse Forma claims response:\n{body}"))?;
+    let parsed: ClaimsListResponse = serde_json::from_str(&resp.body)
+        .with_context(|| format!("Failed to parse Forma claims response:\n{}", resp.body))?;
     Ok(parsed.data)
 }
 
@@ -419,19 +470,20 @@ pub fn create_claim(opts: &CreateClaimOptions) -> Result<()> {
             .with_context(|| format!("Failed to attach receipt at {}", abs.display()))?;
     }
 
-    let response = client()?
-        .post(format!("{API_BASE}/client/api/v2/claims"))
-        .header(AUTH_HEADER, &opts.access_token)
-        .multipart(form)
-        .send()
-        .context("Failed to submit claim to Forma")?;
+    let c = client()?;
+    let resp = send_request(
+        &c,
+        c.post(format!("{API_BASE}/client/api/v2/claims"))
+            .header(AUTH_HEADER, &opts.access_token)
+            .multipart(form),
+        "Failed to submit claim to Forma",
+    )?;
 
-    if response.status().as_u16() != 201 {
-        return Err(handle_error_response(response));
+    if resp.status.as_u16() != 201 {
+        return Err(handle_error_response(resp.status, &resp.body));
     }
 
-    let parsed: GenericSuccessResponse = response
-        .json()
+    let parsed: GenericSuccessResponse = serde_json::from_str(&resp.body)
         .context("Failed to parse Forma claim creation response")?;
     if !parsed.success {
         bail!(
@@ -443,17 +495,18 @@ pub fn create_claim(opts: &CreateClaimOptions) -> Result<()> {
 
 /// Request a magic link be emailed to the user.
 pub fn request_magic_link(email: &str) -> Result<()> {
-    let response = client()?
-        .post(format!("{API_BASE}/client/auth/v2/login/magic"))
-        .json(&serde_json::json!({ "email": email }))
-        .send()
-        .context("Failed to request magic link")?;
-    if !response.status().is_success() {
-        return Err(handle_error_response(response));
+    let c = client()?;
+    let resp = send_request(
+        &c,
+        c.post(format!("{API_BASE}/client/auth/v2/login/magic"))
+            .json(&serde_json::json!({ "email": email })),
+        "Failed to request magic link",
+    )?;
+    if !resp.status.is_success() {
+        return Err(handle_error_response(resp.status, &resp.body));
     }
-    let parsed: GenericSuccessResponse = response
-        .json()
-        .context("Failed to parse Forma magic link response")?;
+    let parsed: GenericSuccessResponse =
+        serde_json::from_str(&resp.body).context("Failed to parse Forma magic link response")?;
     if !parsed.success {
         bail!("Something went wrong while requesting a magic link from Forma.");
     }
@@ -462,16 +515,17 @@ pub fn request_magic_link(email: &str) -> Result<()> {
 
 /// Exchange a magic-link `id`/`tk` pair for a long-lived access token.
 pub fn exchange_id_and_tk_for_access_token(id: &str, tk: &str) -> Result<String> {
-    let response = client()?
-        .get(format!("{API_BASE}/client/auth/v2/login/magic"))
-        .query(&[("id", id), ("tk", tk), ("return_token", "true")])
-        .send()
-        .context("Failed to exchange magic link for an access token")?;
-    if !response.status().is_success() {
-        return Err(handle_error_response(response));
+    let c = client()?;
+    let resp = send_request(
+        &c,
+        c.get(format!("{API_BASE}/client/auth/v2/login/magic"))
+            .query(&[("id", id), ("tk", tk), ("return_token", "true")]),
+        "Failed to exchange magic link for an access token",
+    )?;
+    if !resp.status.is_success() {
+        return Err(handle_error_response(resp.status, &resp.body));
     }
-    let parsed: MagicLinkExchangeResponse = response
-        .json()
+    let parsed: MagicLinkExchangeResponse = serde_json::from_str(&resp.body)
         .context("Failed to parse Forma magic link exchange response")?;
     if !parsed.success {
         bail!("Something went wrong while exchanging the magic link for an access token.");

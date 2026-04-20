@@ -47,6 +47,9 @@ pub struct LoginArgs {
     /// Provide a magic link directly instead of opening the browser.
     #[arg(long)]
     pub magic_link: Option<String>,
+    /// Log HTTP requests and responses to stderr for debugging.
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -54,6 +57,9 @@ pub struct BenefitsArgs {
     /// Access token used to authenticate with Forma.
     #[arg(long, env = "FORMANATOR_ACCESS_TOKEN")]
     pub access_token: Option<String>,
+    /// Log HTTP requests and responses to stderr for debugging.
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -64,6 +70,9 @@ pub struct CategoriesArgs {
     /// Access token used to authenticate with Forma.
     #[arg(long, env = "FORMANATOR_ACCESS_TOKEN")]
     pub access_token: Option<String>,
+    /// Log HTTP requests and responses to stderr for debugging.
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -74,6 +83,9 @@ pub struct ListClaimsArgs {
     /// Access token used to authenticate with Forma.
     #[arg(long, env = "FORMANATOR_ACCESS_TOKEN")]
     pub access_token: Option<String>,
+    /// Log HTTP requests and responses to stderr for debugging.
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -111,6 +123,9 @@ pub struct SubmitClaimArgs {
     /// Run through the entire flow without actually submitting the claim.
     #[arg(long)]
     pub dry_run: bool,
+    /// Log HTTP requests and responses to stderr for debugging.
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -137,6 +152,9 @@ pub struct SubmitClaimsFromCsvArgs {
     /// Run through the entire flow without actually submitting the claims.
     #[arg(long)]
     pub dry_run: bool,
+    /// Log HTTP requests and responses to stderr for debugging.
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -159,6 +177,9 @@ pub struct SubmitClaimsFromDirectoryArgs {
     /// Run through the entire flow without actually submitting the claims.
     #[arg(long)]
     pub dry_run: bool,
+    /// Log HTTP requests and responses to stderr for debugging.
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -169,6 +190,9 @@ pub struct ValidateCsvArgs {
     /// Access token used to authenticate with Forma.
     #[arg(long, env = "FORMANATOR_ACCESS_TOKEN")]
     pub access_token: Option<String>,
+    /// Log HTTP requests and responses to stderr for debugging.
+    #[arg(long)]
+    pub verbose: bool,
 }
 
 #[cfg(feature = "mcp")]
