@@ -1,0 +1,6 @@
+{
+  "success": true,
+  "data": {
+    "auth_token": "test-access-token-abc123"
+  }
+}

@@ -14,7 +14,7 @@ jobs:
           fetch-depth: 2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
 
       - name: Use stable Rust
         run: rustup override set stable
@@ -38,7 +38,7 @@ jobs:
 
       - name: Upload patch artifact
         if: failure() && env.UPLOAD_PATCH_FILE != null
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.UPLOAD_PATCH_FILE }}
           path: ${{ env.UPLOAD_PATCH_FILE }}
