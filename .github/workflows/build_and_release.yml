@@ -83,11 +83,11 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
         run: echo "value=${REF_NAME//\//_}" >> "$GITHUB_OUTPUT"
       - name: Download macOS amd64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-amd64
       - name: Download macOS arm64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-aarch64
       - name: Create universal macOS binary
@@ -131,25 +131,25 @@ jobs:
         env:
           REF_NAME: ${{ github.ref_name }}
         run: echo "value=${REF_NAME//\//_}" >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_linux-amd64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_linux-aarch64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-amd64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-aarch64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_windows-amd64.exe
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_windows-arm64.exe
       - name: Create release
