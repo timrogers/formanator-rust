@@ -32,6 +32,13 @@ fn cli_with_server() -> (MockServer, Command, tempfile::TempDir) {
         // Reset any color output so predicate matching is reliable.
         .env("NO_COLOR", "1")
         .env("FORMANATOR_API_BASE", server.base_url());
+    // On Windows, `env_clear` strips `SystemRoot`, which the Winsock provider
+    // needs to locate its DLLs (%SystemRoot%\System32). Without it spawned
+    // subprocesses fail with WSAPROVIDERFAILEDINIT (os error 10106).
+    #[cfg(windows)]
+    if let Some(v) = std::env::var_os("SystemRoot") {
+        cmd.env("SystemRoot", v);
+    }
     (server, cmd, home)
 }
 
