@@ -1,7 +1,6 @@
 //! HTTP client for the Forma API (`https://api.joinforma.com`).
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -9,23 +8,14 @@ use reqwest::blocking::{Client, multipart};
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::verbose::is_enabled as is_verbose;
+
 const API_BASE: &str = "https://api.joinforma.com";
 const AUTH_HEADER: &str = "x-auth-token";
 
 // ---------------------------------------------------------------------------
 // Verbose logging
 // ---------------------------------------------------------------------------
-
-static VERBOSE: AtomicBool = AtomicBool::new(false);
-
-/// Enable or disable verbose HTTP request/response logging to stderr.
-pub fn set_verbose(enabled: bool) {
-    VERBOSE.store(enabled, Ordering::Relaxed);
-}
-
-fn is_verbose() -> bool {
-    VERBOSE.load(Ordering::Relaxed)
-}
 
 struct RawResponse {
     status: reqwest::StatusCode,

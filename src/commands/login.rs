@@ -4,8 +4,9 @@ use url::Url;
 
 use crate::cli::LoginArgs;
 use crate::config::{Config, store_config};
-use crate::forma::{exchange_id_and_tk_for_access_token, set_verbose};
+use crate::forma::exchange_id_and_tk_for_access_token;
 use crate::prompt::prompt;
+use crate::verbose;
 
 const FORMA_LOGIN_URL: &str = "https://client.joinforma.com/login?type=magic";
 
@@ -64,7 +65,7 @@ fn prompt_for_emailed_magic_link() -> Result<(String, String)> {
 }
 
 pub fn run(args: LoginArgs) -> Result<()> {
-    set_verbose(args.verbose);
+    verbose::set(args.verbose);
 
     let (id, tk) = if let Some(link) = args.magic_link.as_deref() {
         parse_emailed_forma_magic_link(link)?

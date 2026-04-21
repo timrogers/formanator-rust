@@ -20,6 +20,7 @@ use regex::Regex;
 use serde::Deserialize;
 
 use crate::forma::BenefitWithCategories;
+use crate::verbose::is_enabled as is_verbose;
 
 const OPENAI_BASE: &str = "https://api.openai.com/v1";
 const OPENAI_MODEL: &str = "gpt-4o";
@@ -30,6 +31,7 @@ const GITHUB_MODELS_MODEL: &str = "openai/gpt-4.1";
 struct ApiConfig {
     client: Client<OpenAIConfig>,
     model: String,
+    api_base: String,
 }
 
 fn resolve_api_config(
@@ -57,6 +59,7 @@ fn resolve_api_config(
     Ok(ApiConfig {
         client: Client::with_config(config),
         model: model.to_string(),
+        api_base: base.to_string(),
     })
 }
 
@@ -78,12 +81,27 @@ async fn call_chat_completion(
         .build()
         .context("Failed to build chat completions request")?;
 
+    if is_verbose() {
+        eprintln!("[verbose] > POST {}/chat/completions", config.api_base);
+        match serde_json::to_string(&request) {
+            Ok(body) => eprintln!("[verbose] > Body: {body}"),
+            Err(err) => eprintln!("[verbose] > Body: <failed to serialize: {err}>"),
+        }
+    }
+
     let response = config
         .client
         .chat()
         .create(request)
         .await
         .context("Failed to call chat completions endpoint")?;
+
+    if is_verbose() {
+        match serde_json::to_string(&response) {
+            Ok(body) => eprintln!("[verbose] < Body: {body}"),
+            Err(err) => eprintln!("[verbose] < Body: <failed to serialize: {err}>"),
+        }
+    }
 
     response
         .choices
