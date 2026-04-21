@@ -1,0 +1,55 @@
+{
+  "success": true,
+  "data": {
+    "claims": [
+      {
+        "id": "claim-100",
+        "status": "in_progress",
+        "reimbursement": {
+          "status": "pending",
+          "payout_status": null,
+          "amount": 10.0,
+          "category": "Wellness",
+          "subcategory": "Meditation App",
+          "reimbursement_vendor": "Calm",
+          "date_processed": null,
+          "note": null,
+          "employee_note": "Subscription"
+        }
+      },
+      {
+        "id": "claim-101",
+        "status": "approved",
+        "reimbursement": {
+          "status": "in_progress",
+          "payout_status": "pending",
+          "amount": 33.0,
+          "category": "Fitness",
+          "subcategory": "Gym Membership",
+          "reimbursement_vendor": "FitClub",
+          "date_processed": null,
+          "note": null,
+          "employee_note": null
+        }
+      },
+      {
+        "id": "claim-102",
+        "status": "approved",
+        "reimbursement": {
+          "status": "paid",
+          "payout_status": "completed",
+          "amount": 5.0,
+          "category": "Fitness",
+          "subcategory": "Gym Membership",
+          "reimbursement_vendor": "FitClub",
+          "date_processed": "2024-05-02",
+          "note": null,
+          "employee_note": null
+        }
+      }
+    ],
+    "page": 0,
+    "limit": 100,
+    "count": 3
+  }
+}

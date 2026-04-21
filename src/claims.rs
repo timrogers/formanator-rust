@@ -160,20 +160,112 @@ pub fn read_claims_from_csv(input_path: &std::path::Path) -> Result<Vec<ClaimInp
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     #[test]
     fn validates_purchase_dates() {
         assert!(is_valid_purchase_date("2024-01-02"));
+        assert!(is_valid_purchase_date("9999-12-31"));
         assert!(!is_valid_purchase_date("2024-1-2"));
         assert!(!is_valid_purchase_date("not a date"));
+        assert!(!is_valid_purchase_date(""));
+        assert!(!is_valid_purchase_date("2024/01/02"));
     }
 
     #[test]
     fn validates_amounts() {
         assert!(is_valid_amount("10"));
         assert!(is_valid_amount("10.99"));
+        assert!(is_valid_amount("0"));
+        assert!(is_valid_amount("100000"));
         assert!(!is_valid_amount("10.9"));
         assert!(!is_valid_amount("10.999"));
         assert!(!is_valid_amount("abc"));
+        assert!(!is_valid_amount(""));
+        assert!(!is_valid_amount(".50"));
+        assert!(!is_valid_amount("-10"));
+    }
+
+    fn write_csv(contents: &str) -> tempfile::NamedTempFile {
+        let mut f = tempfile::Builder::new()
+            .suffix(".csv")
+            .tempfile()
+            .expect("tempfile");
+        f.write_all(contents.as_bytes()).expect("write csv");
+        f
+    }
+
+    #[test]
+    fn read_claims_from_csv_parses_a_complete_row() {
+        let csv = "benefit,category,merchant,amount,description,purchaseDate,receiptPath\n\
+                   Lifestyle,Gym,FitClub,25.99,Monthly,2024-01-02,/tmp/r.jpg\n";
+        let f = write_csv(csv);
+        let rows = read_claims_from_csv(f.path()).expect("parse");
+        assert_eq!(rows.len(), 1);
+        let r = &rows[0];
+        assert_eq!(r.benefit, "Lifestyle");
+        assert_eq!(r.category, "Gym");
+        assert_eq!(r.merchant, "FitClub");
+        assert_eq!(r.amount, "25.99");
+        assert_eq!(r.description, "Monthly");
+        assert_eq!(r.purchase_date, "2024-01-02");
+        assert_eq!(r.receipt_path.len(), 1);
+        assert_eq!(r.receipt_path[0], PathBuf::from("/tmp/r.jpg"));
+    }
+
+    #[test]
+    fn read_claims_from_csv_handles_multiple_receipt_paths() {
+        let csv = "benefit,category,merchant,amount,description,purchaseDate,receiptPath\n\
+                   Lifestyle,Gym,FitClub,25.99,Monthly,2024-01-02,\"/tmp/a.jpg, /tmp/b.jpg\"\n";
+        let f = write_csv(csv);
+        let rows = read_claims_from_csv(f.path()).expect("parse");
+        assert_eq!(rows[0].receipt_path.len(), 2);
+        assert_eq!(rows[0].receipt_path[0], PathBuf::from("/tmp/a.jpg"));
+        // The second path should have leading whitespace trimmed.
+        assert_eq!(rows[0].receipt_path[1], PathBuf::from("/tmp/b.jpg"));
+    }
+
+    #[test]
+    fn read_claims_from_csv_filters_empty_receipt_path_segments() {
+        let csv = "benefit,category,merchant,amount,description,purchaseDate,receiptPath\n\
+                   Lifestyle,Gym,FitClub,25.99,Monthly,2024-01-02,\n";
+        let f = write_csv(csv);
+        let rows = read_claims_from_csv(f.path()).expect("parse");
+        assert!(rows[0].receipt_path.is_empty());
+    }
+
+    #[test]
+    fn read_claims_from_csv_accepts_headers_in_any_order() {
+        // Order intentionally shuffled relative to EXPECTED_HEADERS.
+        let csv = "receiptPath,purchaseDate,description,amount,merchant,category,benefit\n\
+                   /tmp/r.jpg,2024-01-02,Monthly,25.99,FitClub,Gym,Lifestyle\n";
+        let f = write_csv(csv);
+        let rows = read_claims_from_csv(f.path()).expect("parse");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].benefit, "Lifestyle");
+    }
+
+    #[test]
+    fn read_claims_from_csv_rejects_unexpected_headers() {
+        let csv = "benefit,category,merchant,amount,description,purchaseDate\n";
+        let f = write_csv(csv);
+        let err = read_claims_from_csv(f.path()).expect_err("should fail");
+        assert!(format!("{err}").contains("Invalid CSV headers"));
+    }
+
+    #[test]
+    fn read_claims_from_csv_returns_empty_for_template_only() {
+        let csv = "benefit,category,merchant,amount,description,purchaseDate,receiptPath\n";
+        let f = write_csv(csv);
+        let rows = read_claims_from_csv(f.path()).expect("parse");
+        assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn read_claims_from_csv_errors_on_missing_file() {
+        let path = std::path::PathBuf::from("/nonexistent/path/does/not/exist.csv");
+        let err = read_claims_from_csv(&path).expect_err("should fail");
+        let msg = format!("{err:#}");
+        assert!(msg.contains("Failed to open CSV file"), "{msg}");
     }
 }

@@ -20,6 +20,10 @@ pub struct Config {
 }
 
 fn config_path() -> Result<PathBuf> {
+    // Allow the path to be overridden for testing or custom deployments.
+    if let Some(path) = std::env::var_os("FORMANATOR_CONFIG_PATH") {
+        return Ok(PathBuf::from(path));
+    }
     let home = dirs::home_dir().context("Could not determine your home directory")?;
     Ok(home.join(CONFIG_FILENAME))
 }
@@ -61,4 +65,50 @@ pub fn store_config(config: &Config) -> Result<()> {
     fs::write(&path, serialised)
         .with_context(|| format!("Failed to write config file at {}", path.display()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_serializes_with_camelcase_access_token_and_omits_email() {
+        let config = Config {
+            access_token: "tok".to_string(),
+            email: None,
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"accessToken\":\"tok\""), "{json}");
+        // `email` is `None`, so it should be skipped.
+        assert!(!json.contains("email"), "{json}");
+    }
+
+    #[test]
+    fn config_serializes_email_when_present() {
+        let config = Config {
+            access_token: "tok".to_string(),
+            email: Some("user@example.com".to_string()),
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"email\":\"user@example.com\""), "{json}");
+    }
+
+    #[test]
+    fn config_round_trips_through_json() {
+        let original = Config {
+            access_token: "tok".to_string(),
+            email: Some("user@example.com".to_string()),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let parsed: Config = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.access_token, original.access_token);
+        assert_eq!(parsed.email, original.email);
+    }
+
+    #[test]
+    fn resolve_access_token_prefers_explicit_value() {
+        // When an explicit value is provided, the saved config is not consulted.
+        let token = resolve_access_token(Some("from-cli")).unwrap();
+        assert_eq!(token, "from-cli");
+    }
 }

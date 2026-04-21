@@ -1,0 +1,40 @@
+{
+  "success": true,
+  "data": {
+    "claims": [
+      {
+        "id": "claim-001",
+        "status": "approved",
+        "reimbursement": {
+          "status": "paid",
+          "payout_status": "completed",
+          "amount": 25.99,
+          "category": "Fitness",
+          "subcategory": "Gym Membership",
+          "reimbursement_vendor": "FitClub",
+          "date_processed": "2024-05-01",
+          "note": "Auto-approved.",
+          "employee_note": "Monthly gym membership."
+        }
+      },
+      {
+        "id": "claim-002",
+        "status": "in_progress",
+        "reimbursement": {
+          "status": "in_progress",
+          "payout_status": null,
+          "amount": 12.5,
+          "category": "Wellness",
+          "subcategory": "Meditation App",
+          "reimbursement_vendor": "Headspace",
+          "date_processed": null,
+          "note": null,
+          "employee_note": "Annual subscription."
+        }
+      }
+    ],
+    "page": 0,
+    "limit": 2,
+    "count": 2
+  }
+}

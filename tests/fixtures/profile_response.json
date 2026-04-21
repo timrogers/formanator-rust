@@ -1,0 +1,92 @@
+{
+  "success": true,
+  "data": {
+    "company": {
+      "company_wallet_configurations": [
+        {
+          "wallet_name": "Lifestyle Spending Account",
+          "categories": [
+            {
+              "id": "cat-fitness",
+              "name": "Fitness",
+              "subcategories": [
+                {
+                  "name": "Gym Membership",
+                  "value": "gym_membership",
+                  "aliases": ["Gym", "Fitness Class"]
+                },
+                {
+                  "name": "Home Gym Equipment",
+                  "value": "home_gym",
+                  "aliases": []
+                }
+              ]
+            },
+            {
+              "id": "cat-wellness",
+              "name": "Wellness",
+              "subcategories": [
+                {
+                  "name": "Meditation App",
+                  "value": "meditation_app",
+                  "aliases": ["Headspace"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "wallet_name": "Health Spending Account",
+          "categories": [
+            {
+              "id": "cat-medical",
+              "name": "Medical",
+              "subcategories": [
+                {
+                  "name": "Prescription",
+                  "value": "prescription",
+                  "aliases": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "wallet_name": "Closed Wallet",
+          "categories": []
+        }
+      ]
+    },
+    "employee": {
+      "employee_wallets": [
+        {
+          "id": "wallet-lsa-1",
+          "amount": 750.5,
+          "is_employee_eligible": true,
+          "company_wallet_configuration": {
+            "wallet_name": "Lifestyle Spending Account"
+          }
+        },
+        {
+          "id": "wallet-hsa-1",
+          "amount": 1200.0,
+          "is_employee_eligible": true,
+          "company_wallet_configuration": {
+            "wallet_name": "Health Spending Account"
+          }
+        },
+        {
+          "id": "wallet-closed-1",
+          "amount": 0.0,
+          "is_employee_eligible": false,
+          "company_wallet_configuration": {
+            "wallet_name": "Closed Wallet"
+          }
+        }
+      ],
+      "settings": {
+        "currency": "USD"
+      }
+    }
+  }
+}

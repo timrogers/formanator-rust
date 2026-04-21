@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "data": {
+    "claims": [
+      {
+        "id": "claim-003",
+        "status": "approved",
+        "reimbursement": {
+          "status": "paid",
+          "payout_status": "completed",
+          "amount": 99.0,
+          "category": "Medical",
+          "subcategory": "Prescription",
+          "reimbursement_vendor": "Pharmacy Plus",
+          "date_processed": "2024-04-20",
+          "note": null,
+          "employee_note": null
+        }
+      }
+    ],
+    "page": 1,
+    "limit": "2",
+    "count": 1
+  }
+}
