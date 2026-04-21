@@ -1,9 +1,12 @@
-//! Helpers shared between the `forma_api.rs` and `cli.rs` integration test
-//! binaries.
+//! Helpers shared between the `forma_api.rs`, `cli.rs` and `llm_api.rs`
+//! integration test binaries.
 //!
 //! Each integration test binary in `tests/` is compiled as its own crate, so
 //! we include this file with `#[path = "common/mod.rs"] mod common;` rather
-//! than relying on Rust's normal module resolution.
+//! than relying on Rust's normal module resolution. Not every binary uses
+//! every helper here, so individual items are annotated `#[allow(dead_code)]`.
+
+#![allow(dead_code)]
 
 use std::path::PathBuf;
 

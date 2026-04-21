@@ -27,11 +27,31 @@ const OPENAI_MODEL: &str = "gpt-4o";
 const GITHUB_MODELS_BASE: &str = "https://models.github.ai/inference";
 const GITHUB_MODELS_MODEL: &str = "openai/gpt-4.1";
 
+// Base-URL override for the LLM API. Production code never sets this; the
+// integration tests in `tests/llm_api.rs` and `tests/cli.rs` use it to point
+// the OpenAI-compatible client at a local mock HTTP server instead of the
+// real OpenAI / GitHub Models endpoints.
+static LLM_API_BASE: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
+
+/// Override the LLM API base URL used for OpenAI-compatible chat-completions
+/// calls. Passing `None` clears any previous override. This is exposed
+/// publicly so that integration tests can call it; production code should
+/// never do so.
+pub fn set_llm_api_base(base: Option<String>) {
+    if let Ok(mut guard) = LLM_API_BASE.write() {
+        *guard = base;
+    }
+}
+
+fn llm_api_base_override() -> Option<String> {
+    LLM_API_BASE.read().ok().and_then(|g| g.clone())
+}
+
 /// Resolved configuration for an OpenAI-compatible API call.
 struct ApiConfig {
     client: Client<OpenAIConfig>,
     model: &'static str,
-    api_base: &'static str,
+    api_base: String,
 }
 
 fn resolve_api_config(
@@ -55,7 +75,8 @@ fn resolve_api_config(
         bail!("You must either specify a GitHub token or an OpenAI API key.")
     };
 
-    let config = OpenAIConfig::new().with_api_base(base).with_api_key(key);
+    let base = llm_api_base_override().unwrap_or_else(|| base.to_string());
+    let config = OpenAIConfig::new().with_api_base(&base).with_api_key(key);
     Ok(ApiConfig {
         client: Client::with_config(config),
         model,
@@ -153,6 +174,7 @@ fn user_text_and_image_message(
 // Category / benefit inference (text-only)
 // ---------------------------------------------------------------------------
 
+#[derive(Debug)]
 pub struct InferredCategoryAndBenefit {
     pub category: String,
     pub benefit: String,
