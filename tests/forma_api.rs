@@ -341,21 +341,21 @@ fn create_claim_posts_multipart_form_and_succeeds_on_201() {
             // reqwest sets a multipart content-type with a boundary; assert the
             // textual form fields appear in the body — that's enough to be
             // confident we're constructing the multipart correctly.
-            .body_contains("name=\"type\"")
-            .body_contains("transaction")
-            .body_contains("name=\"amount\"")
-            .body_contains("25.99")
-            .body_contains("name=\"transaction_date\"")
-            .body_contains("2024-01-02")
-            .body_contains("name=\"default_employee_wallet_id\"")
-            .body_contains("wallet-lsa-1")
-            .body_contains("name=\"category\"")
-            .body_contains("cat-fitness")
-            .body_contains("name=\"subcategory\"")
-            .body_contains("gym_membership")
-            .body_contains("name=\"reimbursement_vendor\"")
-            .body_contains("FitClub")
-            .body_contains("name=\"file[]\"");
+            .body_includes("name=\"type\"")
+            .body_includes("transaction")
+            .body_includes("name=\"amount\"")
+            .body_includes("25.99")
+            .body_includes("name=\"transaction_date\"")
+            .body_includes("2024-01-02")
+            .body_includes("name=\"default_employee_wallet_id\"")
+            .body_includes("wallet-lsa-1")
+            .body_includes("name=\"category\"")
+            .body_includes("cat-fitness")
+            .body_includes("name=\"subcategory\"")
+            .body_includes("gym_membership")
+            .body_includes("name=\"reimbursement_vendor\"")
+            .body_includes("FitClub")
+            .body_includes("name=\"file[]\"");
         then.status(201)
             .body(fixture("create_claim_response_success.json"));
     });
