@@ -3,10 +3,11 @@ use tabled::{builder::Builder, settings::Style};
 
 use crate::cli::ListClaimsArgs;
 use crate::config::resolve_access_token;
-use crate::forma::{ClaimsFilter, get_claims_list, set_verbose};
+use crate::forma::{ClaimsFilter, get_claims_list};
+use crate::verbose;
 
 pub fn run(args: ListClaimsArgs) -> Result<()> {
-    set_verbose(args.verbose);
+    verbose::set(args.verbose);
     let access_token = resolve_access_token(args.access_token.as_deref())?;
 
     let filter = match args.filter.as_deref() {
