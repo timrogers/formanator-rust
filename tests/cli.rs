@@ -4,7 +4,6 @@
 //! redirected to a temporary directory via `HOME` so the tests don't touch the
 //! user's real `~/.formanatorrc.json`.
 
-use std::path::PathBuf;
 use std::process::Command;
 
 use assert_cmd::prelude::*;
@@ -13,16 +12,11 @@ use predicates::prelude::*;
 use predicates::str::contains;
 use serial_test::serial;
 
-const TOKEN: &str = "test-access-token-abc123";
+#[path = "common/mod.rs"]
+mod common;
+use common::{fixture, make_fake_receipt};
 
-fn fixture(name: &str) -> String {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
-        .join(name);
-    std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("failed to read fixture {}: {e}", path.display()))
-}
+const TOKEN: &str = "test-access-token-abc123";
 
 /// Start a fresh mock HTTP server and prepare a `formanator` Command that's
 /// already wired up to talk to it, with a clean temporary HOME and no
@@ -363,19 +357,14 @@ fn submit_claims_from_csv_dry_run_runs_against_the_mock_server() {
     });
 
     let receipt = make_fake_receipt();
-    let csv_path = {
-        let dir = tempfile::tempdir().unwrap();
-        let p = dir.path().join("claims.csv");
-        let body = format!(
-            "benefit,category,merchant,amount,description,purchaseDate,receiptPath\n\
-             Lifestyle Spending Account,Headspace,Headspace,9.99,Monthly,2024-02-03,{}\n",
-            receipt.path().display()
-        );
-        std::fs::write(&p, body).unwrap();
-        // Leak the tempdir so the file lives until the assertion finishes.
-        std::mem::forget(dir);
-        p
-    };
+    let dir = tempfile::tempdir().unwrap();
+    let csv_path = dir.path().join("claims.csv");
+    let body = format!(
+        "benefit,category,merchant,amount,description,purchaseDate,receiptPath\n\
+         Lifestyle Spending Account,Headspace,Headspace,9.99,Monthly,2024-02-03,{}\n",
+        receipt.path().display()
+    );
+    std::fs::write(&csv_path, body).unwrap();
 
     cmd.env("FORMANATOR_ACCESS_TOKEN", TOKEN)
         .args(["submit-claims-from-csv", "--input-path"])
@@ -385,6 +374,9 @@ fn submit_claims_from_csv_dry_run_runs_against_the_mock_server() {
         .success()
         .stdout(contains("Dry run"))
         .stdout(contains("Successfully submitted claim"));
+    // `dir` lives until the end of the function, so its temporary files are
+    // cleaned up after the assertion completes.
+    drop(dir);
 }
 
 #[test]
@@ -477,22 +469,4 @@ fn login_with_invalid_magic_link_fails_without_writing_config() {
         !home.path().join(".formanatorrc.json").exists(),
         "no config file should have been written"
     );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn make_fake_receipt() -> tempfile::NamedTempFile {
-    use std::io::Write;
-    let mut f = tempfile::Builder::new()
-        .suffix(".jpg")
-        .tempfile()
-        .expect("tempfile");
-    // A minimal "JPEG" payload is enough for reqwest's multipart streaming.
-    f.write_all(&[
-        0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, b'J', b'F', b'I', b'F', 0xFF, 0xD9,
-    ])
-    .unwrap();
-    f
 }

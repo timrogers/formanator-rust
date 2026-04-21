@@ -15,16 +15,11 @@ use formanator::forma::{
 use httpmock::prelude::*;
 use serial_test::serial;
 
-const TOKEN: &str = "test-access-token-abc123";
+#[path = "common/mod.rs"]
+mod common;
+use common::{fixture, make_fake_receipt as fake_receipt};
 
-fn fixture(name: &str) -> String {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
-        .join(name);
-    std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("failed to read fixture {}: {e}", path.display()))
-}
+const TOKEN: &str = "test-access-token-abc123";
 
 /// RAII guard that sets the API base for the duration of a test and clears it
 /// when dropped.
@@ -330,21 +325,6 @@ fn exchange_id_and_tk_propagates_invalid_jwt_error() {
 // ---------------------------------------------------------------------------
 // create_claim
 // ---------------------------------------------------------------------------
-
-fn fake_receipt() -> tempfile::NamedTempFile {
-    use std::io::Write;
-    let mut f = tempfile::Builder::new()
-        .suffix(".jpg")
-        .tempfile()
-        .expect("tempfile");
-    // A minimal JPEG file header + EOI marker is enough to satisfy reqwest's
-    // multipart form (it just streams the bytes).
-    f.write_all(&[
-        0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, b'J', b'F', b'I', b'F', 0xFF, 0xD9,
-    ])
-    .unwrap();
-    f
-}
 
 #[test]
 #[serial]

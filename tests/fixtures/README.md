@@ -13,8 +13,8 @@ at are omitted, except where useful for round-trip testing.
 | ---- | -------- |
 | `profile_response.json` | `GET /client/api/v3/settings/profile` (multiple wallets, including ineligible + aliases) |
 | `profile_response_empty.json` | Profile response with no eligible wallets |
-| `claims_list_page0.json` | `GET /client/api/v2/claims?page=0` (full page) |
-| `claims_list_page1.json` | `GET /client/api/v2/claims?page=1` (final, partial page) |
+| `claims_list_page0.json` | `GET /client/api/v2/claims?page=0` (full page; numeric `limit`) |
+| `claims_list_page1.json` | `GET /client/api/v2/claims?page=1` (final, partial page; **stringly-typed `limit`** — Forma sometimes returns `limit` as a string, and the client must tolerate both) |
 | `claims_list_in_progress.json` | Single-page response containing in-progress and completed claims |
 | `magic_link_request_response.json` | `POST /client/auth/v2/login/magic` (request body + success response) |
 | `magic_link_exchange_response.json` | `GET /client/auth/v2/login/magic` (exchange success response) |
