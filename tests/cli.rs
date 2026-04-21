@@ -24,15 +24,16 @@ const TOKEN: &str = "test-access-token-abc123";
 fn cli_with_server() -> (MockServer, Command, tempfile::TempDir) {
     let server = MockServer::start();
     let home = tempfile::tempdir().expect("tempdir");
+    let config_path = home.path().join(".formanatorrc.json");
     let mut cmd = Command::cargo_bin("formanator").expect("binary built");
     // Keep the test environment isolated from any developer config.
     cmd.env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
-        // Unix home directory resolution uses HOME; Windows uses USERPROFILE.
-        // Set both so that `dirs::home_dir()` returns our temp dir on all
-        // platforms.
+        // On Unix, HOME is used by dirs::home_dir(). On Windows the dirs crate
+        // calls SHGetKnownFolderPath (a Win32 API) which ignores env vars, so
+        // we override the full config path directly instead.
         .env("HOME", home.path())
-        .env("USERPROFILE", home.path())
+        .env("FORMANATOR_CONFIG_PATH", &config_path)
         // Reset any color output so predicate matching is reliable.
         .env("NO_COLOR", "1")
         .env("FORMANATOR_API_BASE", server.base_url());
@@ -462,7 +463,7 @@ fn login_with_magic_link_writes_config_to_home() {
     mock.assert();
 
     // The CLI should have persisted the access token returned by the mock
-    // server into ~/.formanatorrc.json.
+    // server into the config path we pointed it at via FORMANATOR_CONFIG_PATH.
     let config_path = home.path().join(".formanatorrc.json");
     let saved: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();

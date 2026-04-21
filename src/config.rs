@@ -20,6 +20,10 @@ pub struct Config {
 }
 
 fn config_path() -> Result<PathBuf> {
+    // Allow the path to be overridden for testing or custom deployments.
+    if let Some(path) = std::env::var_os("FORMANATOR_CONFIG_PATH") {
+        return Ok(PathBuf::from(path));
+    }
     let home = dirs::home_dir().context("Could not determine your home directory")?;
     Ok(home.join(CONFIG_FILENAME))
 }
