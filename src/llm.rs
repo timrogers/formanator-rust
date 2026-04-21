@@ -8,7 +8,7 @@ use std::process::Command;
 use anyhow::{Context, Result, anyhow, bail};
 use async_openai::Client;
 use async_openai::config::OpenAIConfig;
-use async_openai::types::{
+use async_openai::types::chat::{
     ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImageArgs,
     ChatCompletionRequestMessageContentPartTextArgs, ChatCompletionRequestUserMessageArgs,
     ChatCompletionRequestUserMessageContent, ChatCompletionRequestUserMessageContentPart,
