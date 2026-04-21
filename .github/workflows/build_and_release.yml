@@ -66,7 +66,7 @@ jobs:
           rm -f target/${{ matrix.job.target }}/release/formanator.d
           cp target/${{ matrix.job.target }}/release/formanator formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
       - name: Upload binary as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           path: formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_${{ matrix.job.binary_name }}
@@ -96,7 +96,7 @@ jobs:
             formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-amd64 \
             formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-aarch64
       - name: Upload universal binary as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           path: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
           name: formanator_${{ steps.sanitise_ref.outputs.value }}_darwin-universal
