@@ -311,12 +311,12 @@ fn submit_claim_submits_a_full_multipart_request_to_the_mock_server() {
         when.method(POST)
             .path("/client/api/v2/claims")
             .header("x-auth-token", TOKEN)
-            .body_contains("name=\"amount\"")
-            .body_contains("9.99")
-            .body_contains("name=\"reimbursement_vendor\"")
-            .body_contains("Headspace")
-            .body_contains("name=\"default_employee_wallet_id\"")
-            .body_contains("wallet-lsa-1");
+            .body_includes("name=\"amount\"")
+            .body_includes("9.99")
+            .body_includes("name=\"reimbursement_vendor\"")
+            .body_includes("Headspace")
+            .body_includes("name=\"default_employee_wallet_id\"")
+            .body_includes("wallet-lsa-1");
         then.status(201)
             .body(fixture("create_claim_response_success.json"));
     });
