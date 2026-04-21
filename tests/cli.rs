@@ -28,7 +28,11 @@ fn cli_with_server() -> (MockServer, Command, tempfile::TempDir) {
     // Keep the test environment isolated from any developer config.
     cmd.env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+        // Unix home directory resolution uses HOME; Windows uses USERPROFILE.
+        // Set both so that `dirs::home_dir()` returns our temp dir on all
+        // platforms.
         .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
         // Reset any color output so predicate matching is reliable.
         .env("NO_COLOR", "1")
         .env("FORMANATOR_API_BASE", server.base_url());
