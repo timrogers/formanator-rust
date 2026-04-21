@@ -655,12 +655,12 @@ mod tests {
         let body = fixture("profile_response.json");
         let parsed: ProfileResponse =
             serde_json::from_str(&body).expect("profile response fixture should parse");
-        assert_eq!(parsed.data.employee.settings.currency, "USD");
-        assert_eq!(parsed.data.employee.employee_wallets.len(), 3);
-        assert_eq!(parsed.data.company.company_wallet_configurations.len(), 3);
+        assert_eq!(parsed.data.employee.settings.currency, "GBP");
+        assert_eq!(parsed.data.employee.employee_wallets.len(), 6);
+        assert_eq!(parsed.data.company.company_wallet_configurations.len(), 8);
 
-        // The fixture intentionally includes one ineligible wallet so we can
-        // assert that downstream code filters it out.
+        // The fixture intentionally includes ineligible wallets so we can
+        // assert that downstream code filters them out.
         let eligible = parsed
             .data
             .employee
@@ -668,7 +668,7 @@ mod tests {
             .iter()
             .filter(|w| w.is_employee_eligible)
             .count();
-        assert_eq!(eligible, 2);
+        assert_eq!(eligible, 3);
     }
 
     #[test]

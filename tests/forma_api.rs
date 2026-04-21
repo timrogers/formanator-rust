@@ -64,20 +64,28 @@ fn get_benefits_returns_eligible_wallets_with_currency() {
     let benefits = get_benefits(TOKEN).expect("should fetch benefits");
     mock.assert();
 
-    assert_eq!(benefits.len(), 2, "ineligible wallets must be filtered out");
+    // The fixture has 6 employee_wallets but only 3 are flagged as eligible;
+    // the rest must be filtered out.
+    assert_eq!(benefits.len(), 3, "ineligible wallets must be filtered out");
     let names: Vec<&str> = benefits.iter().map(|b| b.name.as_str()).collect();
-    assert!(names.contains(&"Lifestyle Spending Account"));
-    assert!(names.contains(&"Health Spending Account"));
-    assert!(!names.contains(&"Closed Wallet"));
+    assert!(names.contains(&"Wellness and Lifestyle"));
+    assert!(names.contains(&"Learning"));
+    assert!(names.contains(&"Flexible Reimbursement Account"));
+    assert!(!names.contains(&"Remote Life"));
+    assert!(!names.contains(&"New Hire Home Office"));
+    assert!(!names.contains(&"Gender Affirming HRA"));
 
     for b in &benefits {
-        assert_eq!(b.remaining_amount_currency, "USD");
+        assert_eq!(b.remaining_amount_currency, "GBP");
     }
-    let lsa = benefits
+    let wellness = benefits
         .iter()
-        .find(|b| b.name == "Lifestyle Spending Account")
+        .find(|b| b.name == "Wellness and Lifestyle")
         .unwrap();
-    assert!((lsa.remaining_amount - 750.5).abs() < 1e-9);
+    assert_eq!(wellness.id, "wallet-0002-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    assert!((wellness.remaining_amount - 750.5).abs() < 1e-9);
+    let learning = benefits.iter().find(|b| b.name == "Learning").unwrap();
+    assert!((learning.remaining_amount - 1250.0).abs() < 1e-9);
 }
 
 #[test]
@@ -117,33 +125,32 @@ fn get_categories_for_benefit_name_expands_aliases() {
         then.status(200).body(fixture("profile_response.json"));
     });
 
-    let cats =
-        get_categories_for_benefit_name(TOKEN, "Lifestyle Spending Account").expect("should fetch");
+    let cats = get_categories_for_benefit_name(TOKEN, "Learning").expect("should fetch");
 
-    // The fixture has:
-    //   - Fitness > Gym Membership (aliases: Gym, Fitness Class)  -> 3 rows
-    //   - Fitness > Home Gym Equipment (no aliases)               -> 1 row
-    //   - Wellness > Meditation App (alias: Headspace)            -> 2 rows
-    assert_eq!(cats.len(), 6);
+    // The Learning wallet in the fixture has 4 parent categories totalling
+    // 15 subcategories. 8 of those subcategories declare an alias, each of
+    // which produces an additional row in the flattened output:
+    //   15 base rows + 8 alias rows = 23 rows.
+    assert_eq!(cats.len(), 23);
 
-    // Every row in this benefit must reference the same wallet id.
+    // Every row in this benefit must reference the Learning wallet id.
     for c in &cats {
-        assert_eq!(c.benefit_id, "wallet-lsa-1");
+        assert_eq!(c.benefit_id, "wallet-0003-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     }
 
     // The original (non-aliased) row exists for every subcategory.
     assert!(
         cats.iter()
-            .any(|c| c.subcategory_name == "Gym Membership" && c.subcategory_alias.is_none())
+            .any(|c| c.subcategory_name == "Book" && c.subcategory_alias.is_none())
     );
     // Aliases produce additional rows with the alias populated.
     let aliases: Vec<&str> = cats
         .iter()
         .filter_map(|c| c.subcategory_alias.as_deref())
         .collect();
-    assert!(aliases.contains(&"Gym"));
-    assert!(aliases.contains(&"Fitness Class"));
-    assert!(aliases.contains(&"Headspace"));
+    assert!(aliases.contains(&"Book (personal development)"));
+    assert!(aliases.contains(&"Personal Class Material/Supplies/Equipment"));
+    assert!(aliases.contains(&"Personal University Program & class materials"));
 }
 
 #[test]
@@ -169,20 +176,23 @@ fn get_benefits_with_categories_combines_each_benefit_with_its_categories() {
     });
 
     let combined = get_benefits_with_categories(TOKEN).expect("should fetch");
-    assert_eq!(combined.len(), 2);
-    let lsa = combined
+    assert_eq!(combined.len(), 3);
+    let wellness = combined
         .iter()
-        .find(|b| b.benefit.name == "Lifestyle Spending Account")
+        .find(|b| b.benefit.name == "Wellness and Lifestyle")
         .unwrap();
-    assert_eq!(lsa.categories.len(), 6);
-    let health_spending_account = combined
+    // Wellness and Lifestyle: 53 base subcategories + 4 alias rows = 57.
+    assert_eq!(wellness.categories.len(), 57);
+    let learning = combined
         .iter()
-        .find(|b| b.benefit.name == "Health Spending Account")
+        .find(|b| b.benefit.name == "Learning")
         .unwrap();
-    assert_eq!(health_spending_account.categories.len(), 1);
-    assert_eq!(
-        health_spending_account.categories[0].subcategory_name,
-        "Prescription"
+    assert_eq!(learning.categories.len(), 23);
+    assert!(
+        learning
+            .categories
+            .iter()
+            .any(|c| c.subcategory_name == "Book")
     );
 }
 
@@ -467,20 +477,23 @@ fn claim_input_to_create_options_resolves_benefit_and_subcategory_alias() {
     });
     let receipt = fake_receipt();
     let claim = formanator::claims::ClaimInput {
-        benefit: "Lifestyle Spending Account".to_string(),
-        category: "Headspace".to_string(),
+        benefit: "Learning".to_string(),
+        category: "Book (personal development)".to_string(),
         amount: "9.99".to_string(),
-        merchant: "Headspace".to_string(),
+        merchant: "Local Bookshop".to_string(),
         purchase_date: "2024-02-03".to_string(),
-        description: "Monthly subscription".to_string(),
+        description: "Personal development book".to_string(),
         receipt_path: vec![receipt.path().to_path_buf()],
     };
     let opts =
         formanator::claims::claim_input_to_create_options(&claim, TOKEN).expect("should resolve");
-    assert_eq!(opts.benefit_id, "wallet-lsa-1");
-    assert_eq!(opts.category_id, "cat-wellness");
-    assert_eq!(opts.subcategory_value, "meditation_app");
-    assert_eq!(opts.subcategory_alias.as_deref(), Some("Headspace"));
+    assert_eq!(opts.benefit_id, "wallet-0003-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    assert_eq!(opts.category_id, "personal_development");
+    assert_eq!(opts.subcategory_value, "book");
+    assert_eq!(
+        opts.subcategory_alias.as_deref(),
+        Some("Book (personal development)")
+    );
 }
 
 #[test]
@@ -493,7 +506,7 @@ fn claim_input_to_create_options_errors_for_unknown_category() {
     });
     let receipt = fake_receipt();
     let claim = formanator::claims::ClaimInput {
-        benefit: "Lifestyle Spending Account".to_string(),
+        benefit: "Learning".to_string(),
         category: "Bogus Category".to_string(),
         amount: "9.99".to_string(),
         merchant: "X".to_string(),
@@ -516,8 +529,8 @@ fn claim_input_to_create_options_errors_for_invalid_amount() {
     });
     let receipt = fake_receipt();
     let claim = formanator::claims::ClaimInput {
-        benefit: "Lifestyle Spending Account".to_string(),
-        category: "Gym Membership".to_string(),
+        benefit: "Learning".to_string(),
+        category: "Book".to_string(),
         amount: "9.999".to_string(),
         merchant: "X".to_string(),
         purchase_date: "2024-02-03".to_string(),

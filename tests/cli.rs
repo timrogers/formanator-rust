@@ -170,12 +170,14 @@ fn benefits_command_renders_a_table_from_mock_profile_response() {
         .arg("benefits")
         .assert()
         .success()
-        .stdout(contains("Lifestyle Spending Account"))
-        .stdout(contains("Health Spending Account"))
-        .stdout(contains("USD"))
+        .stdout(contains("Wellness and Lifestyle"))
+        .stdout(contains("Learning"))
+        .stdout(contains("Flexible Reimbursement Account"))
+        .stdout(contains("GBP"))
         .stdout(contains("750.5"))
-        // Closed Wallet is ineligible and must not appear.
-        .stdout(contains("Closed Wallet").not());
+        // Ineligible wallets must not appear.
+        .stdout(contains("Remote Life").not())
+        .stdout(contains("New Hire Home Office").not());
     mock.assert();
 }
 
@@ -205,14 +207,15 @@ fn categories_command_lists_subcategories_for_a_benefit() {
     });
 
     cmd.env("FORMANATOR_ACCESS_TOKEN", TOKEN)
-        .args(["categories", "--benefit", "Lifestyle Spending Account"])
+        .args(["categories", "--benefit", "Learning"])
         .assert()
         .success()
-        .stdout(contains("Fitness"))
-        .stdout(contains("Gym Membership"))
-        .stdout(contains("Headspace"))
+        .stdout(contains("Personal Development"))
+        .stdout(contains("Book"))
+        .stdout(contains("Book (personal development)"))
+        .stdout(contains("Skills Development"))
         // Categories from another benefit must not leak in.
-        .stdout(contains("Prescription").not());
+        .stdout(contains("Athletic Clothing").not());
 }
 
 #[test]
@@ -277,17 +280,17 @@ fn submit_claim_dry_run_resolves_ids_without_posting_a_claim() {
         .args([
             "submit-claim",
             "--benefit",
-            "Lifestyle Spending Account",
+            "Learning",
             "--category",
-            "Headspace",
+            "Book (personal development)",
             "--amount",
             "9.99",
             "--merchant",
-            "Headspace",
+            "Local Bookshop",
             "--purchase-date",
             "2024-02-03",
             "--description",
-            "Monthly subscription",
+            "Personal development book",
             "--receipt-path",
         ])
         .arg(receipt.path())
@@ -314,9 +317,9 @@ fn submit_claim_submits_a_full_multipart_request_to_the_mock_server() {
             .body_contains("name=\"amount\"")
             .body_contains("9.99")
             .body_contains("name=\"reimbursement_vendor\"")
-            .body_contains("Headspace")
+            .body_contains("Local Bookshop")
             .body_contains("name=\"default_employee_wallet_id\"")
-            .body_contains("wallet-lsa-1");
+            .body_contains("wallet-0003-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         then.status(201)
             .body(fixture("create_claim_response_success.json"));
     });
@@ -326,17 +329,17 @@ fn submit_claim_submits_a_full_multipart_request_to_the_mock_server() {
         .args([
             "submit-claim",
             "--benefit",
-            "Lifestyle Spending Account",
+            "Learning",
             "--category",
-            "Headspace",
+            "Book (personal development)",
             "--amount",
             "9.99",
             "--merchant",
-            "Headspace",
+            "Local Bookshop",
             "--purchase-date",
             "2024-02-03",
             "--description",
-            "Monthly subscription",
+            "Personal development book",
             "--receipt-path",
         ])
         .arg(receipt.path())
@@ -373,7 +376,7 @@ fn submit_claims_from_csv_dry_run_runs_against_the_mock_server() {
     let csv_path = dir.path().join("claims.csv");
     let body = format!(
         "benefit,category,merchant,amount,description,purchaseDate,receiptPath\n\
-         Lifestyle Spending Account,Headspace,Headspace,9.99,Monthly,2024-02-03,{}\n",
+         Learning,Book (personal development),Local Bookshop,9.99,Monthly,2024-02-03,{}\n",
         receipt.path().display()
     );
     std::fs::write(&csv_path, body).unwrap();
@@ -409,8 +412,8 @@ fn validate_csv_reports_per_row_validation_status() {
     let csv_path = dir.path().join("claims.csv");
     let body = format!(
         "benefit,category,merchant,amount,description,purchaseDate,receiptPath\n\
-         Lifestyle Spending Account,Gym Membership,FitClub,25.99,Monthly gym,2024-01-02,{}\n\
-         Health Spending Account,Prescription,Pharmacy,5.00,Antibiotics,2024-01-03,{}\n",
+         Learning,Book,Local Bookshop,25.99,Personal development book,2024-01-02,{}\n\
+         Wellness and Lifestyle,Athletic Clothing,Sportswear Co,30.00,Running shorts,2024-01-03,{}\n",
         receipt.path().display(),
         receipt.path().display()
     );
