@@ -175,12 +175,15 @@ fn get_benefits_with_categories_combines_each_benefit_with_its_categories() {
         .find(|b| b.benefit.name == "Lifestyle Spending Account")
         .unwrap();
     assert_eq!(lsa.categories.len(), 6);
-    let hsa = combined
+    let health_spending_account = combined
         .iter()
         .find(|b| b.benefit.name == "Health Spending Account")
         .unwrap();
-    assert_eq!(hsa.categories.len(), 1);
-    assert_eq!(hsa.categories[0].subcategory_name, "Prescription");
+    assert_eq!(health_spending_account.categories.len(), 1);
+    assert_eq!(
+        health_spending_account.categories[0].subcategory_name,
+        "Prescription"
+    );
 }
 
 // ---------------------------------------------------------------------------
