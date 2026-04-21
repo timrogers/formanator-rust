@@ -335,7 +335,7 @@ fn exchange_id_and_tk_returns_auth_token_from_response() {
 
     let token = exchange_id_and_tk_for_access_token("the-id", "the-tk").expect("should exchange");
     mock.assert();
-    assert_eq!(token, "test-access-token-abc123");
+    assert_eq!(token, common::FIXTURE_AUTH_TOKEN);
 }
 
 #[test]

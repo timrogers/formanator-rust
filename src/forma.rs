@@ -712,7 +712,11 @@ mod tests {
         let parsed: MagicLinkExchangeResponse =
             serde_json::from_str(&body).expect("magic link exchange");
         assert!(parsed.success);
-        assert_eq!(parsed.data.auth_token, "test-access-token-abc123");
+        // The fixture's auth_token is a JWT-shaped string with three
+        // base64url-encoded segments separated by dots.
+        let segments: Vec<&str> = parsed.data.auth_token.split('.').collect();
+        assert_eq!(segments.len(), 3);
+        assert!(parsed.data.auth_token.starts_with("eyJ"));
     }
 
     #[test]

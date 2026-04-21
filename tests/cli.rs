@@ -473,7 +473,7 @@ fn login_with_magic_link_writes_config_to_home() {
     let config_path = home.path().join(".formanatorrc.json");
     let saved: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
-    assert_eq!(saved["accessToken"], "test-access-token-abc123");
+    assert_eq!(saved["accessToken"], common::FIXTURE_AUTH_TOKEN);
 }
 
 #[test]

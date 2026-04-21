@@ -7,6 +7,11 @@
 
 use std::path::PathBuf;
 
+/// JWT-shaped auth token returned by `magic_link_exchange_response.json`. The
+/// integration tests assert that the login flow round-trips this exact value
+/// from the fixture into the on-disk config.
+pub const FIXTURE_AUTH_TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZvcm1hLXRlc3Qta2V5In0.eyJ1c2VyX2lkIjoiMTExMTExMTEtMTExMS00MTExLTgxMTEtMTExMTExMTExMTExIiwiY29tcGFueV9pZCI6Imdsb2JleF9pbmR1c3RyaWVzIiwiZW1haWwiOiJhbGV4LmRvZUBnbG9iZXguZXhhbXBsZSIsImlhdCI6MTc0NTIyMjgzNiwiZXhwIjoxNzQ1MzA5MjM2LCJpc3MiOiJmb3JtYS10ZXN0IiwicGFkZGluZyI6Inh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4In0.YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE";
+
 /// Read a file from `tests/fixtures/` by name, panicking with a helpful
 /// message on I/O errors.
 pub fn fixture(name: &str) -> String {
