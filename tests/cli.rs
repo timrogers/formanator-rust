@@ -239,9 +239,9 @@ fn list_claims_renders_pagination_results_as_a_table() {
         .arg("list-claims")
         .assert()
         .success()
-        .stdout(contains("FitClub"))
-        .stdout(contains("Headspace"))
-        .stdout(contains("Pharmacy Plus"))
+        .stdout(contains("Apple"))
+        .stdout(contains("Amazon"))
+        .stdout(contains("Open University"))
         // The "Payout Status" column is added when at least one claim has one.
         .stdout(contains("Payout Status"));
 }
@@ -260,8 +260,11 @@ fn list_claims_in_progress_filter_returns_only_matching_claims() {
         .args(["list-claims", "--filter", "in_progress"])
         .assert()
         .success()
-        .stdout(contains("Calm"))
-        .stdout(contains("FitClub"));
+        // ip_c1 (top-level in_progress) and ip_c2 (reimbursement in_progress)
+        // must both appear; ip_c3 (completed) must be filtered out.
+        .stdout(contains("Open University"))
+        .stdout(contains("Peloton"))
+        .stdout(contains("Grab").not());
 }
 
 #[test]

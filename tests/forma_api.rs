@@ -222,13 +222,30 @@ fn get_claims_list_paginates_until_a_partial_page() {
     page1.assert();
     assert_eq!(claims.len(), 3);
     let ids: Vec<&str> = claims.iter().map(|c| c.id.as_str()).collect();
-    assert_eq!(ids, vec!["claim-001", "claim-002", "claim-003"]);
+    assert_eq!(
+        ids,
+        vec![
+            "c1aa1111-1111-4111-8111-111111111111",
+            "c2aa2222-2222-4222-8222-222222222222",
+            "c3aa3333-3333-4333-8333-333333333333",
+        ],
+    );
 
     // Field projection from the nested `reimbursement` object.
-    let claim2 = claims.iter().find(|c| c.id == "claim-002").unwrap();
-    assert_eq!(claim2.reimbursement_status.as_deref(), Some("in_progress"));
-    assert_eq!(claim2.payout_status, None);
-    assert_eq!(claim2.amount, Some(12.5));
+    let in_progress_claim = claims
+        .iter()
+        .find(|c| c.id == "c2aa2222-2222-4222-8222-222222222222")
+        .unwrap();
+    assert_eq!(
+        in_progress_claim.reimbursement_status.as_deref(),
+        Some("in_progress")
+    );
+    assert_eq!(in_progress_claim.payout_status, None);
+    assert_eq!(in_progress_claim.amount, Some(23.99));
+    assert_eq!(
+        in_progress_claim.reimbursement_vendor.as_deref(),
+        Some("Amazon")
+    );
 }
 
 #[test]
@@ -243,10 +260,11 @@ fn get_claims_list_in_progress_filter() {
 
     let claims = get_claims_list(TOKEN, Some(ClaimsFilter::InProgress)).expect("should fetch");
     let ids: Vec<&str> = claims.iter().map(|c| c.id.as_str()).collect();
-    // claim-100: top-level status in_progress; claim-101: reimbursement.status in_progress.
-    assert!(ids.contains(&"claim-100"));
-    assert!(ids.contains(&"claim-101"));
-    assert!(!ids.contains(&"claim-102"));
+    // ip_c1: top-level status in_progress; ip_c2: reimbursement.status in_progress.
+    assert!(ids.contains(&"ip1a1111-1111-4111-8111-111111111111"));
+    assert!(ids.contains(&"ip2a2222-2222-4222-8222-222222222222"));
+    // ip_c3 is fully completed and must be filtered out.
+    assert!(!ids.contains(&"ip3a3333-3333-4333-8333-333333333333"));
     assert_eq!(claims.len(), 2);
 }
 

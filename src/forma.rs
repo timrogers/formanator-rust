@@ -692,7 +692,7 @@ mod tests {
         assert_eq!(parsed.data.claims[1].status, "in_progress");
         assert_eq!(
             parsed.data.claims[0].reimbursement.payout_status.as_deref(),
-            Some("completed")
+            Some("paid")
         );
     }
 
