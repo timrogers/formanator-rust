@@ -30,8 +30,8 @@ const GITHUB_MODELS_MODEL: &str = "openai/gpt-4.1";
 /// Resolved configuration for an OpenAI-compatible API call.
 struct ApiConfig {
     client: Client<OpenAIConfig>,
-    model: String,
-    api_base: String,
+    model: &'static str,
+    api_base: &'static str,
 }
 
 fn resolve_api_config(
@@ -58,8 +58,8 @@ fn resolve_api_config(
     let config = OpenAIConfig::new().with_api_base(base).with_api_key(key);
     Ok(ApiConfig {
         client: Client::with_config(config),
-        model: model.to_string(),
-        api_base: base.to_string(),
+        model,
+        api_base: base,
     })
 }
 
@@ -76,7 +76,7 @@ async fn call_chat_completion(
     messages: Vec<ChatCompletionRequestMessage>,
 ) -> Result<String> {
     let request = CreateChatCompletionRequestArgs::default()
-        .model(&config.model)
+        .model(config.model)
         .messages(messages)
         .build()
         .context("Failed to build chat completions request")?;
