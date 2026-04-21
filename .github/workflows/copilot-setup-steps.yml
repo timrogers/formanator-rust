@@ -24,11 +24,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
       - name: Install stable Rust toolchain
         run: rustup override set stable
 
+      - name: Install clippy and rustfmt
+        run: rustup component add clippy rustfmt
+
       - name: Cache Cargo build artifacts
         uses: Swatinem/rust-cache@v2
+
+      - name: Install pre-commit
+        run: pip install pre-commit
 
       - name: Run an initial debug build
         run: cargo build --locked --all-features --all-targets
