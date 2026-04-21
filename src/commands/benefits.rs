@@ -4,7 +4,8 @@ use tabled::{Table, Tabled, settings::Style};
 
 use crate::cli::BenefitsArgs;
 use crate::config::resolve_access_token;
-use crate::forma::{get_benefits, set_verbose};
+use crate::forma::get_benefits;
+use crate::verbose;
 
 #[derive(Tabled)]
 struct Row {
@@ -15,7 +16,7 @@ struct Row {
 }
 
 pub fn run(args: BenefitsArgs) -> Result<()> {
-    set_verbose(args.verbose);
+    verbose::set(args.verbose);
     let access_token = resolve_access_token(args.access_token.as_deref())?;
     let benefits = get_benefits(&access_token)?;
 

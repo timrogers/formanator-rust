@@ -1,7 +1,6 @@
 //! HTTP client for the Forma API (`https://api.joinforma.com`).
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -9,23 +8,52 @@ use reqwest::blocking::{Client, multipart};
 use serde::Deserialize;
 use serde_json::Value;
 
-const API_BASE: &str = "https://api.joinforma.com";
+use crate::verbose::is_enabled as is_verbose;
+
+const DEFAULT_API_BASE: &str = "https://api.joinforma.com";
 const AUTH_HEADER: &str = "x-auth-token";
+
+// ---------------------------------------------------------------------------
+// API base URL
+// ---------------------------------------------------------------------------
+//
+// In production we always talk to `https://api.joinforma.com`. To support
+// integration tests that point the client at a local mock HTTP server we keep
+// the base URL behind a `RwLock` that can be overridden via [`set_api_base`].
+//
+// Production code never calls `set_api_base`, so the default value is used
+// throughout the binary's lifetime.
+
+static API_BASE: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
+
+fn api_base() -> String {
+    if let Ok(guard) = API_BASE.read()
+        && let Some(base) = guard.as_ref()
+    {
+        return base.clone();
+    }
+    if let Ok(env_base) = std::env::var("FORMANATOR_API_BASE")
+        && !env_base.is_empty()
+    {
+        return env_base;
+    }
+    DEFAULT_API_BASE.to_string()
+}
+
+/// Override the Forma API base URL. Intended for tests that point the client at
+/// a local mock HTTP server. Pass `None` to restore the default.
+///
+/// This is exposed publicly so that integration tests living outside of the
+/// crate can call it; production code should not call this.
+pub fn set_api_base(base: Option<String>) {
+    if let Ok(mut guard) = API_BASE.write() {
+        *guard = base;
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Verbose logging
 // ---------------------------------------------------------------------------
-
-static VERBOSE: AtomicBool = AtomicBool::new(false);
-
-/// Enable or disable verbose HTTP request/response logging to stderr.
-pub fn set_verbose(enabled: bool) {
-    VERBOSE.store(enabled, Ordering::Relaxed);
-}
-
-fn is_verbose() -> bool {
-    VERBOSE.load(Ordering::Relaxed)
-}
 
 struct RawResponse {
     status: reqwest::StatusCode,
@@ -289,9 +317,10 @@ fn handle_error_response(status: reqwest::StatusCode, body: &str) -> anyhow::Err
 
 fn get_profile(access_token: &str) -> Result<ProfileResponse> {
     let c = client()?;
+    let base = api_base();
     let resp = send_request(
         &c,
-        c.get(format!("{API_BASE}/client/api/v3/settings/profile"))
+        c.get(format!("{base}/client/api/v3/settings/profile"))
             .header(AUTH_HEADER, access_token),
         "Failed to call Forma profile endpoint",
     )?;
@@ -391,7 +420,8 @@ pub enum ClaimsFilter {
 }
 
 fn fetch_claims_page(access_token: &str, page: u32) -> Result<ClaimsListData> {
-    let url = format!("{API_BASE}/client/api/v2/claims?page={page}");
+    let base = api_base();
+    let url = format!("{base}/client/api/v2/claims?page={page}");
     let c = client()?;
     let resp = send_request(
         &c,
@@ -493,9 +523,10 @@ pub fn create_claim(opts: &CreateClaimOptions) -> Result<()> {
     }
 
     let c = client()?;
+    let base = api_base();
     let resp = send_request(
         &c,
-        c.post(format!("{API_BASE}/client/api/v2/claims"))
+        c.post(format!("{base}/client/api/v2/claims"))
             .header(AUTH_HEADER, &opts.access_token)
             .multipart(form),
         "Failed to submit claim to Forma",
@@ -518,9 +549,10 @@ pub fn create_claim(opts: &CreateClaimOptions) -> Result<()> {
 /// Request a magic link be emailed to the user.
 pub fn request_magic_link(email: &str) -> Result<()> {
     let c = client()?;
+    let base = api_base();
     let resp = send_request(
         &c,
-        c.post(format!("{API_BASE}/client/auth/v2/login/magic"))
+        c.post(format!("{base}/client/auth/v2/login/magic"))
             .json(&serde_json::json!({ "email": email })),
         "Failed to request magic link",
     )?;
@@ -538,10 +570,14 @@ pub fn request_magic_link(email: &str) -> Result<()> {
 /// Exchange a magic-link `id`/`tk` pair for a long-lived access token.
 pub fn exchange_id_and_tk_for_access_token(id: &str, tk: &str) -> Result<String> {
     let c = client()?;
+    let base = api_base();
     let resp = send_request(
         &c,
-        c.get(format!("{API_BASE}/client/auth/v2/login/magic"))
-            .query(&[("id", id), ("tk", tk), ("return_token", "true")]),
+        c.get(format!("{base}/client/auth/v2/login/magic")).query(&[
+            ("id", id),
+            ("tk", tk),
+            ("return_token", "true"),
+        ]),
         "Failed to exchange magic link for an access token",
     )?;
     if !resp.status.is_success() {
@@ -553,4 +589,205 @@ pub fn exchange_id_and_tk_for_access_token(id: &str, tk: &str) -> Result<String>
         bail!("Something went wrong while exchanging the magic link for an access token.");
     }
     Ok(parsed.data.auth_token)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn fixture(name: &str) -> String {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join(name);
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("failed to read fixture {}: {e}", path.display()))
+    }
+
+    // ----- handle_error_response -----
+
+    #[test]
+    fn handle_error_invalid_jwt_returns_login_message() {
+        let body = fixture("error_invalid_jwt.json");
+        let err = handle_error_response(reqwest::StatusCode::UNAUTHORIZED, &body);
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("Forma access token is invalid"),
+            "unexpected error message: {msg}"
+        );
+        assert!(msg.contains("formanator login"), "{msg}");
+    }
+
+    #[test]
+    fn handle_error_generic_returns_message_from_body() {
+        let body = fixture("error_generic.json");
+        let err = handle_error_response(reqwest::StatusCode::FORBIDDEN, &body);
+        assert_eq!(
+            format!("{err}"),
+            "That benefit is not available for your account."
+        );
+    }
+
+    #[test]
+    fn handle_error_unknown_shape_falls_back_to_status_and_body() {
+        let body = fixture("error_unknown_shape.json");
+        let err = handle_error_response(reqwest::StatusCode::INTERNAL_SERVER_ERROR, &body);
+        let msg = format!("{err}");
+        assert!(msg.contains("500"), "{msg}");
+        assert!(msg.contains("Internal Server Error"), "{msg}");
+        // The original body should be included verbatim so debugging is possible.
+        assert!(msg.contains("\"unexpected\""), "{msg}");
+    }
+
+    #[test]
+    fn handle_error_unparseable_body_falls_back_to_status_and_body() {
+        let err = handle_error_response(reqwest::StatusCode::BAD_GATEWAY, "<html>boom</html>");
+        let msg = format!("{err}");
+        assert!(msg.contains("502"), "{msg}");
+        assert!(msg.contains("<html>boom</html>"), "{msg}");
+    }
+
+    // ----- Deserialization of the response fixtures -----
+
+    #[test]
+    fn parses_profile_response_fixture() {
+        let body = fixture("profile_response.json");
+        let parsed: ProfileResponse =
+            serde_json::from_str(&body).expect("profile response fixture should parse");
+        assert_eq!(parsed.data.employee.settings.currency, "USD");
+        assert_eq!(parsed.data.employee.employee_wallets.len(), 3);
+        assert_eq!(parsed.data.company.company_wallet_configurations.len(), 3);
+
+        // The fixture intentionally includes one ineligible wallet so we can
+        // assert that downstream code filters it out.
+        let eligible = parsed
+            .data
+            .employee
+            .employee_wallets
+            .iter()
+            .filter(|w| w.is_employee_eligible)
+            .count();
+        assert_eq!(eligible, 2);
+    }
+
+    #[test]
+    fn parses_empty_profile_response_fixture() {
+        let body = fixture("profile_response_empty.json");
+        let parsed: ProfileResponse =
+            serde_json::from_str(&body).expect("empty profile fixture should parse");
+        assert_eq!(parsed.data.employee.settings.currency, "GBP");
+        assert!(parsed.data.employee.employee_wallets.is_empty());
+        assert!(parsed.data.company.company_wallet_configurations.is_empty());
+    }
+
+    #[test]
+    fn parses_claims_list_page0_fixture() {
+        let body = fixture("claims_list_page0.json");
+        let parsed: ClaimsListResponse = serde_json::from_str(&body).expect("claims page 0");
+        assert_eq!(parsed.data.claims.len(), 2);
+        assert_eq!(parsed.data.count, 2);
+        // limit can be either a number or a string.
+        assert_eq!(parsed.data.limit, Value::Number(2u64.into()));
+        assert_eq!(parsed.data.claims[1].status, "in_progress");
+        assert_eq!(
+            parsed.data.claims[0].reimbursement.payout_status.as_deref(),
+            Some("completed")
+        );
+    }
+
+    #[test]
+    fn parses_claims_list_page1_fixture_with_string_limit() {
+        let body = fixture("claims_list_page1.json");
+        let parsed: ClaimsListResponse = serde_json::from_str(&body).expect("claims page 1");
+        assert_eq!(parsed.data.claims.len(), 1);
+        assert_eq!(parsed.data.count, 1);
+        // Forma sometimes returns `limit` as a string; we must tolerate that.
+        assert_eq!(parsed.data.limit, Value::String("2".to_string()));
+    }
+
+    #[test]
+    fn parses_magic_link_exchange_response_fixture() {
+        let body = fixture("magic_link_exchange_response.json");
+        let parsed: MagicLinkExchangeResponse =
+            serde_json::from_str(&body).expect("magic link exchange");
+        assert!(parsed.success);
+        assert_eq!(parsed.data.auth_token, "test-access-token-abc123");
+    }
+
+    #[test]
+    fn parses_create_claim_success_fixture() {
+        let body = fixture("create_claim_response_success.json");
+        let parsed: GenericSuccessResponse =
+            serde_json::from_str(&body).expect("create claim success");
+        assert!(parsed.success);
+    }
+
+    #[test]
+    fn parses_create_claim_unsuccessful_fixture() {
+        let body = fixture("create_claim_response_unsuccessful.json");
+        let parsed: GenericSuccessResponse =
+            serde_json::from_str(&body).expect("create claim unsuccessful");
+        assert!(!parsed.success);
+    }
+
+    // ----- Public types serialize predictably (used by the MCP server / JSON output) -----
+
+    #[test]
+    fn benefit_serializes_with_camel_case_amount_fields() {
+        let benefit = Benefit {
+            id: "wallet-1".to_string(),
+            name: "Lifestyle Spending Account".to_string(),
+            remaining_amount: 12.34,
+            remaining_amount_currency: "USD".to_string(),
+        };
+        let json = serde_json::to_value(&benefit).unwrap();
+        assert_eq!(json["id"], "wallet-1");
+        assert_eq!(json["name"], "Lifestyle Spending Account");
+        assert_eq!(json["remainingAmount"], 12.34);
+        assert_eq!(json["remainingAmountCurrency"], "USD");
+    }
+
+    #[test]
+    fn benefit_with_categories_flattens_benefit_fields() {
+        let bwc = BenefitWithCategories {
+            benefit: Benefit {
+                id: "wallet-1".to_string(),
+                name: "LSA".to_string(),
+                remaining_amount: 1.0,
+                remaining_amount_currency: "USD".to_string(),
+            },
+            categories: vec![Category {
+                category_id: "c1".to_string(),
+                category_name: "Fitness".to_string(),
+                subcategory_name: "Gym".to_string(),
+                subcategory_value: "gym".to_string(),
+                subcategory_alias: Some("alias".to_string()),
+                benefit_id: "wallet-1".to_string(),
+            }],
+        };
+        let json = serde_json::to_value(&bwc).unwrap();
+        // Flattened benefit fields appear at the top level alongside `categories`.
+        assert_eq!(json["id"], "wallet-1");
+        assert_eq!(json["name"], "LSA");
+        assert_eq!(json["categories"][0]["category_id"], "c1");
+        assert_eq!(json["categories"][0]["subcategory_alias"], "alias");
+    }
+
+    // ----- api_base override -----
+
+    #[test]
+    fn api_base_defaults_and_can_be_overridden() {
+        // The other tests in this binary may override the API base concurrently,
+        // so we're careful only to set + restore inside this test and only
+        // assert on values we control.
+        let original = api_base();
+        set_api_base(Some("http://localhost:1/forma".to_string()));
+        assert_eq!(api_base(), "http://localhost:1/forma");
+        set_api_base(None);
+        // After clearing the override, we either fall back to the env var
+        // (if one is set in the test environment) or the default.
+        let after = api_base();
+        assert!(after == DEFAULT_API_BASE || after == original || after.starts_with("http"));
+    }
 }

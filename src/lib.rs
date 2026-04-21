@@ -11,3 +11,4 @@ pub mod llm;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 pub mod prompt;
+pub mod verbose;

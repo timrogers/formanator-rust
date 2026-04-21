@@ -4,11 +4,12 @@ use colored::Colorize;
 use crate::claims::{claim_input_to_create_options, read_claims_from_csv};
 use crate::cli::SubmitClaimsFromCsvArgs;
 use crate::config::resolve_access_token;
-use crate::forma::{create_claim, get_benefits_with_categories, set_verbose};
+use crate::forma::{create_claim, get_benefits_with_categories};
 use crate::llm::infer_category_and_benefit;
+use crate::verbose;
 
 pub fn run(args: SubmitClaimsFromCsvArgs) -> Result<()> {
-    set_verbose(args.verbose);
+    verbose::set(args.verbose);
     let access_token = resolve_access_token(args.access_token.as_deref())?;
 
     if !args.input_path.exists() {

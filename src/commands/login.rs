@@ -4,8 +4,9 @@ use url::Url;
 
 use crate::cli::LoginArgs;
 use crate::config::{Config, store_config};
-use crate::forma::{exchange_id_and_tk_for_access_token, set_verbose};
+use crate::forma::exchange_id_and_tk_for_access_token;
 use crate::prompt::prompt;
+use crate::verbose;
 
 const FORMA_LOGIN_URL: &str = "https://client.joinforma.com/login?type=magic";
 
@@ -64,7 +65,7 @@ fn prompt_for_emailed_magic_link() -> Result<(String, String)> {
 }
 
 pub fn run(args: LoginArgs) -> Result<()> {
-    set_verbose(args.verbose);
+    verbose::set(args.verbose);
 
     let (id, tk) = if let Some(link) = args.magic_link.as_deref() {
         parse_emailed_forma_magic_link(link)?
@@ -129,5 +130,45 @@ mod tests {
     fn rejects_links_without_a_link_query_parameter() {
         let result = parse_emailed_forma_magic_link("https://joinforma.page.link/");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_non_https_links() {
+        // The host check precludes this in practice but the scheme check is
+        // still important for defence in depth.
+        let result = parse_emailed_forma_magic_link("http://joinforma.page.link/?link=x");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_links_whose_inner_url_is_missing_id_or_tk() {
+        let inner = "https://api.joinforma.com/client/auth/v2/login/magic?id=only";
+        let encoded = url::form_urlencoded::byte_serialize(inner.as_bytes()).collect::<String>();
+        let outer = format!("https://joinforma.page.link/?link={encoded}");
+        let err = parse_emailed_forma_magic_link(&outer).expect_err("should fail");
+        assert!(format!("{err}").contains("id"));
+    }
+
+    #[test]
+    fn rejects_links_whose_inner_url_is_garbage() {
+        let outer = "https://joinforma.page.link/?link=not%20a%20url";
+        let result = parse_emailed_forma_magic_link(outer);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_input_that_is_not_a_url() {
+        let result = parse_emailed_forma_magic_link("definitely not a url");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn trims_surrounding_whitespace() {
+        let inner = "https://api.joinforma.com/client/auth/v2/login/magic?id=abc&tk=xyz";
+        let encoded = url::form_urlencoded::byte_serialize(inner.as_bytes()).collect::<String>();
+        let outer = format!("  https://joinforma.page.link/?link={encoded}\n");
+        let (id, tk) = parse_emailed_forma_magic_link(&outer).expect("should parse");
+        assert_eq!(id, "abc");
+        assert_eq!(tk, "xyz");
     }
 }
