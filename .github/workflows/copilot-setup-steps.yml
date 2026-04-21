@@ -38,6 +38,3 @@ jobs:
 
       - name: Install pre-commit
         run: pip install pre-commit
-
-      - name: Run an initial debug build
-        run: cargo build --locked --all-features --all-targets
